@@ -1,0 +1,32 @@
+# --- Environment & secrets ---
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# --- Backend (Python) ---
+backend/.venv/
+backend/venv/
+backend/aathil/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.log
+*.egg-info/
+
+# --- Frontend (Node) ---
+node_modules/
+dist/
+frontend/*.log
+
+# --- Local ops scripts / one-offs ---
+_*.py
+_inspect*.py
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+# --- Misc artifacts ---
+frontend/preview_out.txt
