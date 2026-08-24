@@ -29,10 +29,13 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
 
-    # CORS
+    # CORS — exact origins allowed to call the API (no trailing slashes).
+    # Includes local dev plus the deployed Vercel frontend.
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "https://care-techaflon-website.vercel.app",
+        "https://care-techaflon-website.onrender.com",
     ]
 
     # Email delivery. Two transports are supported, checked in order:
