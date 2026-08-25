@@ -18,6 +18,20 @@ from app.core.config import settings
 _EMAIL_RE = re.compile(r"([^@\s]+@[^@\s]+\.[^\s@>,]+)")
 
 
+def _attach(mime: MimeMessage, attachment: tuple[str, str, bytes] | None) -> None:
+    """Add ``filename``/``content_type``/``data`` to the MIME message."""
+    if attachment is None:
+        return
+    filename, content_type, data = attachment
+    maintype, _, subtype = (content_type or "application/octet-stream").partition("/")
+    mime.add_attachment(
+        data,
+        maintype=maintype or "application",
+        subtype=subtype or "octet-stream",
+        filename=filename,
+    )
+
+
 def smtp_configured() -> bool:
     """True when a full usable credential set is available.
 
@@ -29,9 +43,15 @@ def smtp_configured() -> bool:
     )
 
 
-def send_email(to_email: str, subject: str, body: str) -> None:
+def send_email(
+    to_email: str,
+    subject: str,
+    body: str,
+    attachment: tuple[str, str, bytes] | None = None,
+) -> None:
     """Deliver one message over SMTP.
 
+    ``attachment`` is ``(filename, content_type, data)`` when present.
     Raises ``RuntimeError`` on any failure so the outbox can record it.
     """
     match = _EMAIL_RE.search(settings.EMAIL_FROM)
@@ -44,6 +64,7 @@ def send_email(to_email: str, subject: str, body: str) -> None:
     mime["To"] = to_email
     mime["Subject"] = subject
     mime.set_content(body)
+    _attach(mime, attachment)
 
     try:
         if settings.SMTP_USE_TLS:

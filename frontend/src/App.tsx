@@ -32,6 +32,10 @@ const AdminAllocationsPage = lazy(
 )
 const ProblemsAdminPage = lazy(() => import('@/pages/admin/ProblemsAdminPage'))
 const AdminEmailsPage = lazy(() => import('@/pages/admin/AdminEmailsPage'))
+
+const AdminCertificatesPage = lazy(
+  () => import('@/pages/admin/AdminCertificatesPage'),
+)
 const AdminAnalyticsPage = lazy(() => import('@/pages/admin/AdminAnalyticsPage'))
 const AdminSettingsPage = lazy(() => import('@/pages/admin/AdminSettingsPage'))
 const AdminAccountPage = lazy(() => import('@/pages/admin/AdminAccountPage'))
@@ -103,6 +107,7 @@ export default function App() {
             <Route path="/admin/allocations" element={<AdminAllocationsPage />} />
             <Route path="/admin/problems" element={<ProblemsAdminPage />} />
             <Route path="/admin/emails" element={<AdminEmailsPage />} />
+            <Route path="/admin/certificates" element={<AdminCertificatesPage />} />
             <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
             <Route path="/admin/settings" element={<AdminSettingsPage />} />
             <Route path="/admin/account" element={<AdminAccountPage />} />

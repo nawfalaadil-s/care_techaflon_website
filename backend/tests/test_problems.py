@@ -1,4 +1,8 @@
-"""Problem statements: public browsing + admin lifecycle."""
+"""Problem statements: admin-only catalogue + lifecycle.
+
+Statements are private to the event: there is no anonymous browsing.
+Participants only ever see the single statement allocated to their team.
+"""
 
 import uuid
 
@@ -18,7 +22,7 @@ VALID_STATEMENT = {
         "reports appear on a live map and trigger area alerts. Include a "
         "moderation queue to keep data trustworthy."
     ),
-    "track": "sustainability",
+    "track": "web",
     "difficulty": "medium",
     "sponsor": None,
     "published": True,
@@ -52,57 +56,61 @@ def _make_admin() -> dict:
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
-def test_public_browse_lists_only_published() -> None:
-    response = client.get("/api/problems")
-    assert response.status_code == 200
-    items = response.json()
+def test_anonymous_browsing_is_disabled() -> None:
+    assert client.get("/api/problems").status_code == 401
+    assert client.get(f"/api/problems/{uuid.uuid4()}").status_code == 401
+
+
+def test_admin_browse_lists_all_with_theme_filter() -> None:
+    headers = _make_admin()
+
+    listed = client.get("/api/problems", headers=headers)
+    assert listed.status_code == 200, listed.text
+    items = listed.json()
     assert len(items) >= 6  # seeded content
-    assert all(item["published"] for item in items)
     assert {"id", "title", "summary", "track", "difficulty"} <= set(items[0])
 
-
-def test_public_track_filter_and_detail() -> None:
-    filtered = client.get("/api/problems", params={"track": "ai-ml"})
+    filtered = client.get("/api/problems", params={"track": "ai-ml"}, headers=headers)
     assert filtered.status_code == 200
-    items = filtered.json()
-    assert len(items) >= 2
-    assert all(item["track"] == "ai-ml" for item in items)
+    for item in filtered.json():
+        assert item["track"] == "ai-ml"
 
-    target = items[0]
-    detail = client.get(f"/api/problems/{target['id']}")
+    detail = client.get(f"/api/problems/{items[0]['id']}", headers=headers)
     assert detail.status_code == 200
-    assert detail.json()["description"] == target["description"]
 
-    missing = client.get(f"/api/problems/{uuid.uuid4()}")
+    missing = client.get(f"/api/problems/{uuid.uuid4()}", headers=headers)
     assert missing.status_code == 404
 
 
 def test_admin_lifecycle_create_patch_delete() -> None:
     headers = _make_admin()
 
-    created = client.post("/api/problems", headers=headers, json=VALID_STATEMENT)
+    # New statements start life as drafts by default.
+    draft_payload = {**VALID_STATEMENT, "published": False}
+    created = client.post("/api/problems", headers=headers, json=draft_payload)
     assert created.status_code == 201, created.text
     statement_id = created.json()["id"]
-    assert created.json()["published"] is True
+    assert created.json()["published"] is False
 
-    # Visible publicly right away.
-    listed = client.get("/api/problems", params={"track": "sustainability"})
+    # Drafts still appear in the admin listing...
+    listed = client.get("/api/problems", headers=headers)
     assert any(item["id"] == statement_id for item in listed.json())
 
-    # Unpublish hides it from public browse and detail.
+    # ...and can be published with a patch.
     patched = client.patch(
-        f"/api/problems/{statement_id}", headers=headers, json={"published": False}
+        f"/api/problems/{statement_id}", headers=headers, json={"published": True}
     )
     assert patched.status_code == 200
-    assert patched.json()["published"] is False
+    assert patched.json()["published"] is True
 
-    hidden_list = client.get("/api/problems")
-    assert all(item["id"] != statement_id for item in hidden_list.json())
-    assert client.get(f"/api/problems/{statement_id}").status_code == 404
+    published = client.get(
+        "/api/problems", params={"track": "web"}, headers=headers
+    )
+    assert any(item["id"] == statement_id for item in published.json())
 
     deleted = client.delete(f"/api/problems/{statement_id}", headers=headers)
     assert deleted.status_code == 204
-    assert client.get(f"/api/problems/{statement_id}").status_code == 404
+    assert client.get(f"/api/problems/{statement_id}", headers=headers).status_code == 404
 
 
 def test_problem_validation_and_guards() -> None:
@@ -120,7 +128,7 @@ def test_problem_validation_and_guards() -> None:
     )
     assert bad_difficulty.status_code == 422
 
-    # Anonymous and non-admin writes are rejected.
+    # Anonymous writes are rejected.
     assert client.post("/api/problems", json=VALID_STATEMENT).status_code == 401
 
     leader_email = _unique("leader")

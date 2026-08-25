@@ -19,6 +19,8 @@ from typing import Deque
 
 from fastapi import HTTPException, Request, status
 
+from app.core.config import settings
+
 
 def _enabled() -> bool:
     return os.environ.get("RATE_LIMIT_ENABLED", "true").lower() not in {
@@ -58,10 +60,17 @@ class RateLimiter:
 
 
 def client_ip(request: Request) -> str:
-    """Best-effort client identity behind the platform's proxy setup."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    """Best-effort client identity.
+
+    Only trusts ``X-Forwarded-For`` in production (where the app sits behind
+    the platform's reverse proxy, which *appends* the real client IP last).
+    Elsewhere the socket peer is used directly so a spoofed header can never
+    rotate rate-limit buckets.
+    """
+    if settings.ENVIRONMENT == "production":
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
 
 

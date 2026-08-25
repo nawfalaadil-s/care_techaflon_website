@@ -68,6 +68,45 @@ def test_login_rate_limit_integration(monkeypatch) -> None:
     assert _enabled() is False
 
 
+def test_team_leader_provisioning_requires_admin() -> None:
+    """Regression: /auth/team-leader once minted accounts anonymously."""
+    target = _unique("victim")
+
+    anonymous = client.post(
+        "/api/auth/team-leader",
+        params={"email": target, "full_name": "Sneaky User", "team_id": "whatever"},
+    )
+    assert anonymous.status_code == 401
+
+    leader = client.post(
+        "/api/auth/register",
+        json={"email": _unique("plain"), "full_name": "Plain Leader", "password": PASSWORD},
+    )
+    assert leader.status_code == 201
+    leader_headers = {"Authorization": f"Bearer {leader.json()['access_token']}"}
+    forbidden = client.post(
+        "/api/auth/team-leader",
+        params={"email": target, "full_name": "Sneaky User", "team_id": "whatever"},
+        headers=leader_headers,
+    )
+    assert forbidden.status_code == 403
+
+    # The victim account must never have been created.
+    login_attempt = client.post("/api/auth/login", json={"email": target, "password": "Demo@1234"})
+    assert login_attempt.status_code == 401
+
+
+def test_login_does_not_provision_demo_accounts() -> None:
+    """Regression: logging in with a registered leader's email used to
+    auto-create the account with the shared demo password (takeover vector).
+    Unknown credentials must simply fail."""
+    response = client.post(
+        "/api/auth/login",
+        json={"email": _unique("neverprovisioned"), "password": "Demo@1234"},
+    )
+    assert response.status_code == 401
+
+
 def test_production_requires_strong_secret(monkeypatch) -> None:
     from app.core.config import settings
 

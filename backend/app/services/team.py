@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -24,17 +24,35 @@ if TYPE_CHECKING:
 
 
 def generate_team_id(db: "Session") -> str:
-    """Generate a unique TechAFlon team ID in the format TFLN-2026-XXX."""
+    """Generate a unique TechAFlon team ID in the format TFLN-2026-XXX.
+
+    Continues from the highest existing sequence (gap-safe) and probes
+    candidates until one is free, so concurrent registrations and deleted
+    rows never produce collisions. The DB unique constraint remains the
+    final authority; ``create_team`` retries on that race.
+    """
     import uuid as _uuid
 
-    count = db.scalar(select(func.count()).select_from(Team)) or 0
-    next_num = int(count) + 1
-    candidate = f"TFLN-2026-{next_num:03d}"
-    exists = db.scalar(select(Team.id).where(Team.team_id == candidate))
-    if exists is not None:
-        # Collision under concurrency — fall back to a unique tag.
-        candidate = f"TFLN-2026-{_uuid.uuid4().hex[:4].upper()}"
-    return candidate
+    last = db.scalar(
+        select(Team.team_id)
+        .where(Team.team_id.like("TFLN-2026-%"))
+        .order_by(Team.team_id.desc())
+        .limit(1)
+    )
+    next_num = 1
+    if last is not None:
+        suffix = last.rsplit("-", 1)[-1]
+        if suffix.isdigit():
+            next_num = int(suffix) + 1
+
+    while next_num <= 999:
+        candidate = f"TFLN-2026-{next_num:03d}"
+        if db.scalar(select(Team.id).where(Team.team_id == candidate)) is None:
+            return candidate
+        next_num += 1
+
+    # Sequence exhausted — fall back to a unique tag.
+    return f"TFLN-2026-{_uuid.uuid4().hex[:4].upper()}"
 
 
 def _team_student_keys(team: Team) -> tuple[set[str], set[str]]:
@@ -182,34 +200,41 @@ def create_team(db: Session, payload: TeamCreate) -> Team:
             detail=f"Team can have at most {MAX_TEAM_SIZE} members (including leader).",
         )
 
-    team = Team(
-        team_id=generate_team_id(db),
-        team_name=payload.team_name.strip(),
-        theme=payload.theme.strip().lower(),
-        status="pending",
-        leader_name=payload.leader_name.strip(),
-        leader_email=payload.leader_email.strip().lower(),
-        leader_phone=payload.leader_phone.strip(),
-        leader_register_number=payload.leader_register_number.strip(),
-        leader_department=payload.leader_department.strip(),
-        leader_year=payload.leader_year.strip(),
-        leader_section=payload.leader_section.strip(),
-        members=[m.model_dump() for m in payload.members],
-    )
+    # Insert with bounded retry: under concurrent registrations two requests
+    # may race past the pre-checks; the DB unique constraints are the final
+    # authority, so regenerate the ID and retry before surfacing a conflict.
+    team: Team | None = None
+    for _attempt in range(3):
+        candidate = Team(
+            team_id=generate_team_id(db),
+            team_name=payload.team_name.strip(),
+            theme=payload.theme.strip().lower(),
+            status="pending",
+            leader_name=payload.leader_name.strip(),
+            leader_email=payload.leader_email.strip().lower(),
+            leader_phone=payload.leader_phone.strip(),
+            leader_register_number=payload.leader_register_number.strip(),
+            leader_department=payload.leader_department.strip(),
+            leader_year=payload.leader_year.strip(),
+            leader_section=payload.leader_section.strip(),
+            members=[m.model_dump() for m in payload.members],
+        )
+        db.add(candidate)
+        try:
+            db.commit()
+            team = candidate
+            break
+        except IntegrityError:
+            db.rollback()
 
-    db.add(team)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        # DB constraints are the final authority under races.
+    if team is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 "Registration conflict: a team with this name, email or "
                 "register number may already exist."
             ),
-        ) from None
+        )
 
     db.refresh(team)
 

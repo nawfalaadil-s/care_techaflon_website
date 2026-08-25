@@ -48,7 +48,16 @@ def create_team_leader(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email already registered.",
         )
-    
+
+    from app.models.team import Team
+
+    team = db.get(Team, team_id)
+    if team is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found.",
+        )
+
     user = User(
         email=email,
         full_name=full_name,
@@ -58,14 +67,10 @@ def create_team_leader(
     db.add(user)
     db.commit()
     db.refresh(user)
-    
-    # Link to team
-    from app.models.team import Team
-    team = db.get(Team, team_id)
-    if team:
-        team.owner_id = user.id
-        db.commit()
-    
+
+    team.owner_id = user.id
+    db.commit()
+
     return user
 
 

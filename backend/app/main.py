@@ -39,11 +39,12 @@ def create_app() -> FastAPI:
             "SECRET_KEY must be set to a strong value when ENVIRONMENT=production."
         )
 
+    docs_enabled = settings.DEBUG and settings.ENVIRONMENT != "production"
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
-        docs_url="/docs" if settings.DEBUG else None,
-        redoc_url="/redoc" if settings.DEBUG else None,
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
     )
 
     app.add_middleware(
@@ -59,12 +60,14 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     def root() -> dict[str, str]:
-        return {
+        info = {
             "app": settings.APP_NAME,
             "version": settings.APP_VERSION,
-            "docs": "/docs",
             "health": "/api/health",
         }
+        if settings.DEBUG and settings.ENVIRONMENT != "production":
+            info["docs"] = "/docs"
+        return info
 
     return app
 

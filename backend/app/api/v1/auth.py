@@ -55,23 +55,6 @@ def login(
     _: None = Depends(limit_login),
 ) -> Token:
     """Authenticate by email/password and issue a token pair."""
-    # Self-heal: any TechAFlon team whose leader has no account yet gets one
-    # provisioned with the demo password on first sign-in attempt. This also
-    # recovers teams registered before account provisioning existed.
-    email = payload.email.strip().lower()
-    from sqlalchemy import select as _select
-
-    from app.models.team import Team
-
-    team = db.scalar(_select(Team).where(Team.leader_email == email))
-    if team is not None:
-        from app.services.user import ensure_leader_account
-
-        try:
-            ensure_leader_account(db, team.leader_email, team.leader_name)
-        except Exception:
-            db.rollback()
-
     user = authenticate(db, payload)
     if user is None:
         raise HTTPException(
@@ -146,15 +129,20 @@ def change_own_password(
     return _token_response(updated)
 
 
-@router.post("/team-leader", response_model=Token)
+@router.post("/team-leader", response_model=Token, status_code=status.HTTP_201_CREATED)
 def create_team_leader(
     email: str,
     full_name: str,
     team_id: str,
     db: Session = Depends(get_db),
+    current: User = Depends(get_current_admin),
 ) -> Token:
-    """Create a team leader account with demo password (Demo@1234)."""
+    """Provision a leader account for an existing team (admin only).
+
+    The account starts with the shared demo password and must be changed
+    by the leader via ``POST /api/auth/change-password``.
+    """
     from app.services.user import create_team_leader as create_leader
-    
+
     user = create_leader(db, email, full_name, team_id)
     return _token_response(user)

@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     auth,
+    certificates,
     emails,
     health,
     problems,
@@ -22,4 +23,5 @@ api_router.include_router(submissions.router)
 api_router.include_router(problems.router)
 api_router.include_router(stats.router)
 api_router.include_router(emails.router)
+api_router.include_router(certificates.router)
 api_router.include_router(settings.router)

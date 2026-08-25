@@ -4,6 +4,7 @@ import uuid
 
 from fastapi.testclient import TestClient
 
+from app.core.security import DEMO_PASSWORD
 from app.main import app
 
 client = TestClient(app)
@@ -23,31 +24,47 @@ def _unique(local: str) -> str:
 
 
 def _team_with_account() -> tuple[str, dict]:
-    """Register a team + matching account (auto-linked). Returns (id, token)."""
+    """Create a team via the public flow and sign in its leader."""
+    tag = uuid.uuid4().hex[:8].upper()
     email = _unique("sub")
     team = client.post(
-        "/api/registration",
+        "/api/teams",
         json={
-            "team_name": "Submitters",
-            "representative_name": "Ada Lovelace",
-            "representative_email": email,
-            "representative_phone": "+91 90000 00000",
-            "institution": "Example Institute of Technology",
-            "year_of_study": "3rd year",
-            "track": "ai-ml",
-            "problem_statement": None,
+            "team_name": f"Submitters {tag}",
+            "theme": "ai-ml",
+            "leader_name": "Ada Lovelace",
+            "leader_email": email,
+            "leader_phone": "+91 90000 00000",
+            "leader_register_number": f"SB{tag}",
+            "leader_department": "CSE",
+            "leader_year": "3rd Year",
             "members": [
-                {"name": "Ada Lovelace", "email": email, "phone": "+91 90000 00000"},
+                {
+                    "name": "Member One",
+                    "email": _unique("s1"),
+                    "register_number": f"S1{tag}",
+                    "department": "CSE",
+                    "year": "3rd Year",
+                },
+                {
+                    "name": "Member Two",
+                    "email": _unique("s2"),
+                    "register_number": f"S2{tag}",
+                    "department": "AI & DS",
+                    "year": "2nd Year",
+                },
             ],
         },
     )
-    assert team.status_code in (200, 201), team.text
-    account = client.post(
-        "/api/auth/register",
-        json={"email": email, "full_name": "Ada Lovelace", "password": PASSWORD},
+    assert team.status_code == 201, team.text
+    login = client.post(
+        "/api/auth/login", json={"email": email, "password": DEMO_PASSWORD}
     )
-    assert account.status_code == 201, account.text
-    return team.json()["id"], {"Authorization": f"Bearer {account.json()['access_token']}"}
+    assert login.status_code == 200, login.text
+    return (
+        team.json()["id"],
+        {"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
 
 
 def test_submission_upsert_get_and_withdraw() -> None:
@@ -58,7 +75,7 @@ def test_submission_upsert_get_and_withdraw() -> None:
     assert empty.status_code == 200
     assert empty.json()["submission"] is None
 
-    # Create.
+    # Create — submissions are final immediately (locked).
     created = client.put(
         f"/api/teams/{team_id}/submission", headers=headers, json=PAYLOAD
     )
@@ -66,8 +83,31 @@ def test_submission_upsert_get_and_withdraw() -> None:
     body = created.json()
     assert body["registration_id"] == team_id
     assert body["demo_url"] == PAYLOAD["demo_url"]
+    assert body["locked"] is True
 
-    # Update keeps the same row.
+    # Edits and withdrawals are refused while locked.
+    edit_locked = client.put(
+        f"/api/teams/{team_id}/submission",
+        headers=headers,
+        json={**PAYLOAD, "project_name": "Campus Navigator v2"},
+    )
+    assert edit_locked.status_code == 403
+    withdraw_locked = client.delete(
+        f"/api/teams/{team_id}/submission", headers=headers
+    )
+    assert withdraw_locked.status_code == 403
+
+    # An admin unlocks for corrections...
+    admin = _make_admin()
+    unlocked = client.patch(
+        f"/api/teams/{team_id}/submission/lock",
+        headers=admin,
+        json={"locked": False},
+    )
+    assert unlocked.status_code == 200
+    assert unlocked.json()["locked"] is False
+
+    # ...and now the team can edit (same row) and withdraw.
     updated = client.put(
         f"/api/teams/{team_id}/submission",
         headers=headers,
@@ -76,13 +116,31 @@ def test_submission_upsert_get_and_withdraw() -> None:
     assert updated.status_code == 200
     assert updated.json()["id"] == body["id"]
     assert updated.json()["project_name"] == "Campus Navigator v2"
-    assert updated.json()["demo_url"] is None
 
-    # Withdraw clears it again.
     withdrawn = client.delete(f"/api/teams/{team_id}/submission", headers=headers)
     assert withdrawn.status_code == 204
     after = client.get(f"/api/teams/{team_id}/submission", headers=headers)
     assert after.json()["submission"] is None
+
+
+def _make_admin() -> dict:
+    from app.database.base import SessionLocal
+    from app.schemas.user import UserCreate
+    from app.services.user import create_user
+
+    email = _unique("sub-admin")
+    db = SessionLocal()
+    try:
+        create_user(
+            db,
+            UserCreate(email=email, full_name="Sub Admin", password=PASSWORD),
+            role="admin",
+        )
+    finally:
+        db.close()
+    login = client.post("/api/auth/login", json={"email": email, "password": PASSWORD})
+    assert login.status_code == 200
+    return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
 def test_submission_validation() -> None:

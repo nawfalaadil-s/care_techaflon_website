@@ -8,7 +8,9 @@ from app.core.config import settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
-    echo=settings.DEBUG,
+    # Statement echo is a dev aid only — never in production, even if
+    # someone boots prod with DEBUG=true.
+    echo=settings.DEBUG and settings.ENVIRONMENT != "production",
     connect_args={"connect_timeout": 3},
 )
 

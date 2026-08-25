@@ -36,3 +36,14 @@ os.environ.setdefault("DEBUG", "false")
 # The whole suite shares one TestClient IP; per-bucket limits are exercised
 # separately in test_security.py.
 os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+
+# Force "log mode" for every email transport: the suite must never deliver
+# real mail even when developer Gmail/SMTP credentials exist in backend/.env.
+# Empty strings read as falsy by both gmail_configured() and smtp_configured().
+os.environ["EMAIL_ENABLED"] = "true"
+os.environ["GMAIL_CLIENT_ID"] = ""
+os.environ["GMAIL_CLIENT_SECRET"] = ""
+os.environ["GMAIL_REFRESH_TOKEN"] = ""
+os.environ["SMTP_HOST"] = ""
+os.environ["SMTP_USERNAME"] = ""
+os.environ["SMTP_PASSWORD"] = ""

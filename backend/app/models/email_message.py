@@ -44,6 +44,15 @@ class EmailMessage(Base):
         index=True,
     )
 
+    # When set, the outbox attaches the referenced certificate file at
+    # delivery time (the binary itself lives once in ``certificates.data``).
+    certificate_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("certificates.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

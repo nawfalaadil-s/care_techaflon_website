@@ -148,6 +148,7 @@ def task_send_team_status_update(team_id: str, new_status: str) -> None:
         context = {
             "team_id": team.team_id,
             "team_name": team.team_name,
+            "leader_name": team.leader_name,
             "status": new_status,
         }
         email.send_notification(
@@ -155,6 +156,57 @@ def task_send_team_status_update(team_id: str, new_status: str) -> None:
             to_email=team.leader_email,
             context=context,
         )
+    except Exception:  # pragma: no cover - background tasks must not raise
+        pass
+    finally:
+        db.close()
+
+
+def task_send_team_certificates(team_id: str, certificate_id: str) -> None:
+    """Email the participation certificate to every member of a team.
+
+    Fired automatically when an admin approves a team (with an active
+    certificate uploaded) and by the admin bulk-send endpoint. Each
+    recipient is checked against the outbox first so nobody is mailed
+    twice for the same certificate.
+    """
+    from app.models.certificate import Certificate
+    from app.models.team import Team
+
+    db = SessionLocal()
+    try:
+        team = db.get(Team, team_id)
+        certificate = db.get(Certificate, certificate_id)
+        if team is None or certificate is None:
+            return
+
+        recipients: list[tuple[str, str]] = [(team.leader_email, team.leader_name)]
+        seen = {team.leader_email.strip().lower()}
+        for member in team.members or []:
+            if not isinstance(member, dict):
+                continue
+            address = str(member.get("email", "")).strip().lower()
+            if address and address not in seen:
+                seen.add(address)
+                recipients.append((str(member.get("email")), str(member.get("name", ""))))
+
+        for to_email, name in recipients:
+            try:
+                if email.certificate_already_sent(db, certificate_id, to_email):
+                    continue
+                email.send_notification(
+                    template="certificate_award",
+                    to_email=to_email,
+                    context={
+                        "name": name or "Participant",
+                        "team_name": team.team_name,
+                        "team_id": team.team_id,
+                        "filename": certificate.filename,
+                    },
+                    certificate_id=certificate_id,
+                )
+            except Exception:  # pragma: no cover - one bad row must not stop the rest
+                continue
     except Exception:  # pragma: no cover - background tasks must not raise
         pass
     finally:

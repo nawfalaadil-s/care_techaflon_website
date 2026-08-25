@@ -79,9 +79,10 @@ def test_overview_rbac_and_shape() -> None:
     response = client.get("/api/stats/overview", headers=admin_headers)
     assert response.status_code == 200, response.text
     stats = response.json()
-    assert stats["registrations"]["total"] >= 1
-    assert isinstance(stats["registrations"]["by_status"], dict)
-    assert isinstance(stats["registrations"]["by_track"], dict)
+    assert stats["teams"]["total"] >= 1
+    assert isinstance(stats["teams"]["by_status"], dict)
+    assert isinstance(stats["teams"]["by_theme"], dict)
+    assert isinstance(stats["members_total"], int)
     assert stats["problem_statements"]["published"] >= 6  # seeded content
     assert stats["users"]["total"] >= 1
 
@@ -150,7 +151,7 @@ def test_problems_all_lists_drafts_for_admin_only() -> None:
             "title": "Secret Draft Challenge",
             "summary": "A draft nobody should see publicly.",
             "description": "Full brief for the unpublished draft challenge goes here.",
-            "track": "mobile",
+            "track": "web",
             "difficulty": "hard",
             "sponsor": None,
             "published": False,
@@ -159,8 +160,8 @@ def test_problems_all_lists_drafts_for_admin_only() -> None:
     assert draft.status_code == 201, draft.text
     draft_id = draft.json()["id"]
 
-    public = client.get("/api/problems")
-    assert all(item["id"] != draft_id for item in public.json())
+    # Statements are private: anonymous callers get 401, never the list.
+    assert client.get("/api/problems").status_code == 401
 
     everything = client.get("/api/problems/all", headers=admin_headers)
     assert everything.status_code == 200

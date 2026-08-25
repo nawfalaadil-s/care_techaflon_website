@@ -16,7 +16,12 @@ def _check_database() -> DatabaseHealth:
             connection.execute(text("SELECT 1"))
         return DatabaseHealth(connected=True)
     except Exception as exc:  # noqa: BLE001 - health check must never raise
-        return DatabaseHealth(connected=False, detail=str(exc))
+        # Never leak connection strings/exception text to unauthenticated
+        # callers; operators can consult server logs for the real error.
+        detail = (
+            str(exc) if settings.ENVIRONMENT != "production" else "Database unavailable."
+        )
+        return DatabaseHealth(connected=False, detail=detail)
 
 
 @router.get("", response_model=HealthResponse)

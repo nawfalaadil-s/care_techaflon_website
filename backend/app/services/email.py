@@ -21,6 +21,7 @@ from sqlalchemy import select
 from app.core import gmail, smtp
 from app.core.config import settings
 from app.database.base import SessionLocal
+from app.models.certificate import Certificate
 from app.models.email_message import EmailMessage
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -131,13 +132,37 @@ def _render_team_registration_confirmation(context: dict[str, Any]) -> tuple[str
 
 
 def _render_team_status_update(context: dict[str, Any]) -> tuple[str, str]:
-    verdict = str(context.get("status", "")).capitalize()
-    subject = f"[{EVENT_NAME}] Status update — {context['team_name']} ({context.get('team_id', '')})"
+    status_value = str(context.get("status", ""))
+    verdict = status_value.capitalize()
+    headlines = {
+        "approved": (
+            "You're in! 🎉",
+            "Your team has been approved. Pack your laptop and charger — "
+            "see you at the venue. Check-in opens 30 minutes before kickoff.",
+        ),
+        "rejected": (
+            "Registration declined",
+            "Unfortunately we couldn't offer your team a spot this time "
+            "(capacity or eligibility). We'd love to see you next semester!",
+        ),
+        "disqualified": (
+            "Team disqualified",
+            "Your team has been disqualified from the event. Contact the "
+            "organizers if you believe this is a mistake.",
+        ),
+        "pending": ("Review pending", "Your team is back under review."),
+    }
+    headline, detail = headlines.get(
+        status_value,
+        (f"Status update: {verdict}", "Your team's status changed."),
+    )
+    subject = f"[{EVENT_NAME}] {headline} — {context['team_name']} ({context.get('team_id', '')})"
     body = (
         f"Hi {context['leader_name']},\n\n"
         f"Update for team \"{context['team_name']}\" (TEAM ID: "
         f"{context.get('team_id', '—')}):\n\n"
         f"  Status: {verdict.upper()}\n\n"
+        f"{detail}\n\n"
         f"— The {EVENT_NAME} Organizing Committee (CSSA)\n"
     )
     return subject, body
@@ -151,22 +176,46 @@ TEMPLATES = {
     "team_status_update": _render_team_status_update,
 }
 
+
+def _render_certificate_award(context: dict[str, Any]) -> tuple[str, str]:
+    """Congratulations note carrying the participation certificate."""
+    subject = f"[{EVENT_NAME}] Your certificate is here! 🎓 — {context['team_name']}"
+    body = (
+        f"Hi {context['name']},\n\n"
+        f"Congratulations! Your team \"{context['team_name']}\" "
+        f"(TEAM ID: {context.get('team_id', '—')}) completed {EVENT_NAME}.\n\n"
+        "Your participation certificate is attached to this email as "
+        f"\"{context.get('filename', 'certificate')}\".\n\n"
+        "Thank you for building with us — see you at the next edition!\n\n"
+        f"— The {EVENT_NAME} Organizing Committee (CSSA)\n"
+    )
+    return subject, body
+
+
+TEMPLATES["certificate_award"] = _render_certificate_award
+
 # ---------------------------------------------------------------------------
 # Delivery transports
 # ---------------------------------------------------------------------------
 
 
-def _deliver(to_email: str, subject: str, body: str) -> str:
+def _deliver(
+    to_email: str,
+    subject: str,
+    body: str,
+    attachment: tuple[str, str, bytes] | None = None,
+) -> str:
     """Send one message via the first configured transport.
 
+    ``attachment`` is ``(filename, content_type, data)`` when present.
     Returns the resulting outbox status (``sent`` or ``logged``).
     Raises ``RuntimeError`` on delivery failure.
     """
     if gmail.gmail_configured():
-        gmail.send_email(to_email, subject, body)
+        gmail.send_email(to_email, subject, body, attachment=attachment)
         return "sent"
     if smtp.smtp_configured():
-        smtp.send_email(to_email, subject, body)
+        smtp.send_email(to_email, subject, body, attachment=attachment)
         return "sent"
     # Log mode: no transport configured (dev/test).
     return "logged"
@@ -177,6 +226,16 @@ def _deliver(to_email: str, subject: str, body: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _attachment_for(db: "Session", message: EmailMessage) -> tuple[str, str, bytes] | None:
+    """Resolve the certificate binary referenced by an outbox row."""
+    if not message.certificate_id:
+        return None
+    certificate = db.get(Certificate, message.certificate_id)
+    if certificate is None:
+        raise RuntimeError("Certificate file is no longer available.")
+    return (certificate.filename, certificate.content_type, certificate.data)
+
+
 def queue_email(
     db: "Session",
     *,
@@ -184,6 +243,7 @@ def queue_email(
     to_email: str,
     context: dict[str, Any],
     registration_id: str | None = None,
+    certificate_id: str | None = None,
 ) -> EmailMessage:
     """Render ``template`` and persist it as a queued outbox row."""
     renderer = TEMPLATES.get(template)
@@ -197,6 +257,7 @@ def queue_email(
         subject=subject[:500],
         body=body,
         registration_id=registration_id,
+        certificate_id=certificate_id,
     )
     db.add(message)
     db.commit()
@@ -220,7 +281,10 @@ def dispatch_message(message_id: str) -> EmailMessage | None:
             message.status, message.error = "failed", "EMAIL_ENABLED is false."
         else:
             try:
-                message.status = _deliver(message.to_email, message.subject, message.body)
+                attachment = _attachment_for(db, message)
+                message.status = _deliver(
+                    message.to_email, message.subject, message.body, attachment
+                )
                 message.error = None
             except RuntimeError as exc:
                 message.status, message.error = "failed", str(exc)
@@ -240,6 +304,7 @@ def send_notification(
     to_email: str,
     context: dict[str, Any],
     registration_id: str | None = None,
+    certificate_id: str | None = None,
 ) -> None:
     """Queue + dispatch in one step (for background workers).
 
@@ -248,13 +313,37 @@ def send_notification(
     """
     db = SessionLocal()
     try:
-        message = queue_email(db, template=template, to_email=to_email, context=context, registration_id=registration_id)
+        message = queue_email(
+            db,
+            template=template,
+            to_email=to_email,
+            context=context,
+            registration_id=registration_id,
+            certificate_id=certificate_id,
+        )
     except Exception:  # pragma: no cover - defensive: bad context etc.
         db.close()
         raise
     message_id = message.id
     db.close()
     dispatch_message(message_id)
+
+
+def certificate_already_sent(db: "Session", certificate_id: str, to_email: str) -> bool:
+    """True when this recipient already has a delivered/logged award mail.
+
+    Keeps bulk sends and re-approvals idempotent — nobody receives the same
+    certificate twice.
+    """
+    existing = db.scalar(
+        select(EmailMessage.id).where(
+            EmailMessage.template == "certificate_award",
+            EmailMessage.certificate_id == certificate_id,
+            EmailMessage.to_email == to_email,
+            EmailMessage.status.in_(("sent", "logged")),
+        )
+    )
+    return existing is not None
 
 
 def resend_message(db: "Session", message_id: str) -> EmailMessage:
@@ -265,7 +354,10 @@ def resend_message(db: "Session", message_id: str) -> EmailMessage:
         if not settings.EMAIL_ENABLED:
             message.status, message.error = "failed", "EMAIL_ENABLED is false."
         else:
-            message.status = _deliver(message.to_email, message.subject, message.body)
+            attachment = _attachment_for(db, message)
+            message.status = _deliver(
+                message.to_email, message.subject, message.body, attachment
+            )
             message.error = None
     except RuntimeError as exc:
         message.status, message.error = "failed", str(exc)

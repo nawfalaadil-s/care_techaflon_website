@@ -65,13 +65,30 @@ def _access_token() -> str:
     return str(payload["access_token"])
 
 
-def send_email(to_email: str, subject: str, body: str) -> str:
-    """Deliver a plain-text email through Gmail. Returns the Gmail message id."""
+def send_email(
+    to_email: str,
+    subject: str,
+    body: str,
+    attachment: tuple[str, str, bytes] | None = None,
+) -> str:
+    """Deliver an email through Gmail. Returns the Gmail message id.
+
+    ``attachment`` is ``(filename, content_type, data)`` when present.
+    """
     mime = MimeMessage()
     mime["From"] = settings.EMAIL_FROM
     mime["To"] = to_email
     mime["Subject"] = subject
     mime.set_content(body)
+    if attachment is not None:
+        filename, content_type, data = attachment
+        maintype, _, subtype = (content_type or "application/octet-stream").partition("/")
+        mime.add_attachment(
+            data,
+            maintype=maintype or "application",
+            subtype=subtype or "octet-stream",
+            filename=filename,
+        )
 
     encoded = base64.urlsafe_b64encode(mime.as_bytes()).decode("ascii")
     request = urllib.request.Request(

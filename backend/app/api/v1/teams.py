@@ -21,7 +21,11 @@ from app.services.team import (
     update_problem_statement,
 )
 from app.services.user import ensure_leader_account
-from app.workers.email_tasks import task_send_team_confirmation
+from app.workers.email_tasks import (
+    task_send_team_certificates,
+    task_send_team_confirmation,
+    task_send_team_status_update,
+)
 
 router = APIRouter(prefix="/teams", tags=["teams"])
 
@@ -145,6 +149,7 @@ def update_team_endpoint(
 def update_team_status_endpoint(
     team_id: str,
     payload: TeamStatusUpdate,
+    background: BackgroundTasks,
     current: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ) -> TeamResponse:
@@ -155,16 +160,31 @@ def update_team_status_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Team not found.",
         )
-    
+
+    # Compare against the status BEFORE mutating the row, then queue the
+    # notifications on the *injected* BackgroundTasks so they actually run
+    # after the response is sent.
+    previous_status = team.status
     updated = update_team_status(db, team, payload)
-    
-    # Send email notification if status changed
-    from app.schemas.team import TeamStatusUpdate as SchemaStatusUpdate
-    if payload.status != team.status:
-        from app.workers.email_tasks import task_send_team_status_update
-        background = BackgroundTasks()
-        background.add_task(task_send_team_status_update, team.id, payload.status)
-    
+
+    if payload.status != previous_status:
+        background.add_task(task_send_team_status_update, updated.id, payload.status)
+
+        # Certificate automation: an approval (with a certificate uploaded)
+        # emails the award file to every participant of the team.
+        if payload.status == "approved":
+            from sqlalchemy import select as _select
+
+            from app.models.certificate import Certificate
+
+            certificate = db.scalar(
+                _select(Certificate).where(Certificate.active.is_(True))
+            )
+            if certificate is not None:
+                background.add_task(
+                    task_send_team_certificates, updated.id, certificate.id
+                )
+
     response = TeamResponse.model_validate(updated)
     response.problem_statement_title = resolve_ps_title(db, updated.problem_statement_id)
     return response
