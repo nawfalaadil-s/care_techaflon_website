@@ -38,9 +38,11 @@ class Settings(BaseSettings):
         "https://care-techaflon-website.onrender.com",
     ]
 
-    # Email delivery. Two transports are supported, checked in order:
+    # Email delivery. Three transports are supported, checked in order:
     #   1. Gmail API  — GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN set.
-    #   2. SMTP       — SMTP_HOST set (e.g. Gmail's smtp.gmail.com:587 using
+    #   2. Brevo API  — BREVO_API_KEY set (HTTPS, works where outbound
+    #                   SMTP is blocked, e.g. Render free tier).
+    #   3. SMTP       — SMTP_HOST set (e.g. Gmail's smtp.gmail.com:587 using
     #                   an App Password).
     # With neither configured the outbox runs in "log mode": every message
     # is rendered and recorded in email_messages, just not delivered.
@@ -52,7 +54,11 @@ class Settings(BaseSettings):
     GMAIL_CLIENT_SECRET: str = ""
     GMAIL_REFRESH_TOKEN: str = ""
 
-    # Transport 2: generic SMTP (Gmail: smtp.gmail.com, port 587, STARTTLS,
+    # Transport 2: Brevo transactional email over HTTPS API
+    # (api.brevo.com:443). Key from dashboard: SMTP & API -> API keys.
+    BREVO_API_KEY: str = ""
+
+    # Transport 3: generic SMTP (Gmail: smtp.gmail.com, port 587, STARTTLS,
     # username = full Gmail address, password = 16-char App Password from
     # https://myaccount.google.com/apppasswords).
     SMTP_HOST: str = ""

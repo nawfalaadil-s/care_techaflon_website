@@ -38,12 +38,13 @@ os.environ.setdefault("DEBUG", "false")
 os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 # Force "log mode" for every email transport: the suite must never deliver
-# real mail even when developer Gmail/SMTP credentials exist in backend/.env.
-# Empty strings read as falsy by both gmail_configured() and smtp_configured().
+# real mail even when developer Gmail/SMTP/Brevo credentials exist in .env.
+# Empty strings read as falsy by all three *_configured() helpers.
 os.environ["EMAIL_ENABLED"] = "true"
 os.environ["GMAIL_CLIENT_ID"] = ""
 os.environ["GMAIL_CLIENT_SECRET"] = ""
 os.environ["GMAIL_REFRESH_TOKEN"] = ""
+os.environ["BREVO_API_KEY"] = ""
 os.environ["SMTP_HOST"] = ""
 os.environ["SMTP_USERNAME"] = ""
 os.environ["SMTP_PASSWORD"] = ""

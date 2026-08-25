@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import HTTPException, status
 from sqlalchemy import select
 
-from app.core import gmail, smtp
+from app.core import brevo, gmail, smtp
 from app.core.config import settings
 from app.database.base import SessionLocal
 from app.models.certificate import Certificate
@@ -213,6 +213,9 @@ def _deliver(
     """
     if gmail.gmail_configured():
         gmail.send_email(to_email, subject, body, attachment=attachment)
+        return "sent"
+    if brevo.brevo_configured():
+        brevo.send_email(to_email, subject, body, attachment=attachment)
         return "sent"
     if smtp.smtp_configured():
         smtp.send_email(to_email, subject, body, attachment=attachment)
