@@ -85,13 +85,21 @@ export function PublicHeader() {
             </Link>
           )}
           {user ? (
-            <Link
-              to="/portal"
-              className="hidden max-w-40 truncate text-sm font-medium text-primary hover:underline sm:inline-flex sm:h-10 sm:items-center sm:px-3"
-              title={user.full_name}
-            >
-              Hi, {user.full_name.split(' ')[0]}
-            </Link>
+            <>
+              <Link
+                to="/account"
+                className="hidden text-sm font-medium text-muted-foreground hover:text-foreground sm:inline-flex sm:h-10 sm:items-center sm:px-3"
+              >
+                My Account
+              </Link>
+              <Link
+                to="/portal"
+                className="hidden max-w-40 truncate text-sm font-medium text-primary hover:underline sm:inline-flex sm:h-10 sm:items-center sm:px-3"
+                title={user.full_name}
+              >
+                Hi, {user.full_name.split(' ')[0]}
+              </Link>
+            </>
           ) : (
             <Link
               to="/login"
@@ -146,13 +154,21 @@ export function PublicHeader() {
               </NavLink>
             ))}
             {user && (
-              <Link
-                to="/portal"
-                className="truncate rounded-md px-3 py-3 text-sm font-medium text-primary sm:hidden"
-                title={user.full_name}
-              >
-                Hi, {user.full_name.split(' ')[0]}
-              </Link>
+              <>
+                <Link
+                  to="/account"
+                  className="rounded-md px-3 py-3 text-sm font-medium text-muted-foreground transition-colors duration-300 ease-out hover:bg-accent hover:text-foreground sm:hidden"
+                >
+                  My Account
+                </Link>
+                <Link
+                  to="/portal"
+                  className="truncate rounded-md px-3 py-3 text-sm font-medium text-primary sm:hidden"
+                  title={user.full_name}
+                >
+                  Hi, {user.full_name.split(' ')[0]}
+                </Link>
+              </>
             )}
             {!user && (
               <Link

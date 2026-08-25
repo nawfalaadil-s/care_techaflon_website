@@ -48,6 +48,10 @@ export default function RegistrationsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [updating, setUpdating] = useState(false)
 
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -110,6 +114,101 @@ export default function RegistrationsPage() {
     setSelectedId(updated.id)
   }
 
+  // ---- Bulk selection helpers ----
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      if (prev.size === filtered.length) return new Set()
+      return new Set(filtered.map((t) => t.id))
+    })
+  }
+
+  async function bulkSetStatus(status: TeamRecord['status']) {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0 || bulkBusy) return
+    if (
+      !window.confirm(
+        `Set ${ids.length} team(s) to "${TEAM_STATUS_LABELS[status]}"?`,
+      )
+    )
+      return
+    setBulkBusy(true)
+    setError(null)
+    try {
+      const result = await teamApi.adminBulkSetStatus(ids, status)
+      if (result.errors.length > 0) {
+        setError(`Updated ${result.updated}, but: ${result.errors.join('; ')}`)
+      }
+      // Refresh to get full updated records
+      await load()
+      setSelectedIds(new Set())
+    } catch (err) {
+      setError(normalizeApiError(err).message)
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  async function bulkDelete() {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0 || bulkBusy) return
+    if (
+      !window.confirm(
+        `Delete ${ids.length} team(s) permanently? This cannot be undone.`,
+      )
+    )
+      return
+    setBulkBusy(true)
+    setError(null)
+    try {
+      const result = await teamApi.adminBulkDelete(ids)
+      if (result.errors.length > 0) {
+        setError(`Deleted ${result.deleted}, but: ${result.errors.join('; ')}`)
+      }
+      await load()
+      setSelectedIds(new Set())
+      if (selectedId && ids.includes(selectedId)) setSelectedId(null)
+    } catch (err) {
+      setError(normalizeApiError(err).message)
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  async function deleteSingle(team: TeamRecord) {
+    if (
+      !window.confirm(
+        `Delete "${team.team_name}" permanently? This cannot be undone.`,
+      )
+    )
+      return
+    setUpdating(true)
+    setError(null)
+    try {
+      await teamApi.adminDelete(team.id)
+      await load()
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(team.id)
+        return next
+      })
+      if (selectedId === team.id) setSelectedId(null)
+    } catch (err) {
+      setError(normalizeApiError(err).message)
+    } finally {
+      setUpdating(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground">
@@ -162,6 +261,65 @@ export default function RegistrationsPage() {
       {error && (
         <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
+        </div>
+      )}
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
+          <span className="text-sm font-medium">
+            {selectedIds.size} team{selectedIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <div className="ml-auto flex flex-wrap gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={bulkBusy}
+              onClick={() => void bulkSetStatus('approved')}
+            >
+              Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={bulkBusy}
+              onClick={() => void bulkSetStatus('pending')}
+            >
+              Set pending
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={bulkBusy}
+              onClick={() => void bulkSetStatus('rejected')}
+            >
+              Reject
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={bulkBusy}
+              onClick={() => void bulkSetStatus('disqualified')}
+            >
+              Disqualify
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={bulkBusy}
+              onClick={() => void bulkDelete()}
+            >
+              Delete
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={bulkBusy}
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Clear
+            </Button>
+          </div>
         </div>
       )}
 
@@ -242,6 +400,16 @@ export default function RegistrationsPage() {
                   {TEAM_STATUS_LABELS[status]}
                 </Button>
               ))}
+              <div className="ml-auto">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={updating}
+                  onClick={() => void deleteSingle(selected)}
+                >
+                  Delete team
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -250,40 +418,54 @@ export default function RegistrationsPage() {
       {/* List */}
       <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
         Showing {filtered.length} of {teams.length} registrations
+        {selectedIds.size > 0 && ` · ${selectedIds.size} selected`}
       </p>
       <ul className="space-y-2">
         {filtered.map((t) => (
           <li key={t.id}>
-            <button
-              type="button"
-              onClick={() => setSelectedId(t.id === selectedId ? null : t.id)}
-              aria-expanded={t.id === selectedId}
-              className={`w-full rounded-lg border p-3.5 text-left transition-colors hover:bg-accent ${
+            <div
+              className={`flex items-center rounded-lg border transition-colors hover:bg-accent ${
                 t.id === selectedId ? 'border-primary' : ''
               }`}
             >
-              <div className="flex items-center justify-between gap-3">
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium">
-                    {t.team_name}
-                    {t.problem_statement_id && (
-                      <span
-                        className="ml-2 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle"
-                        title="Problem statement allocated"
-                      />
-                    )}
+              <label className="flex shrink-0 items-center pl-3">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(t.id)}
+                  onChange={() => toggleSelect(t.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-4 w-4 rounded border-input accent-primary"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setSelectedId(t.id === selectedId ? null : t.id)}
+                aria-expanded={t.id === selectedId}
+                className="flex-1 p-3.5 pl-2.5 text-left"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">
+                      {t.team_name}
+                      {t.problem_statement_id && (
+                        <span
+                          className="ml-2 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle"
+                          title="Problem statement allocated"
+                        />
+                      )}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {t.team_id} · {t.leader_name} ·{' '}
+                      {THEME_LABELS[t.theme] ?? t.theme} · {formatDate(t.created_at)}
+                      {submissions.get(t.id) && ' · 📦 submitted'}
+                    </span>
                   </span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {t.team_id} · {t.leader_name} ·{' '}
-                    {THEME_LABELS[t.theme] ?? t.theme} · {formatDate(t.created_at)}
-                    {submissions.get(t.id) && ' · 📦 submitted'}
-                  </span>
-                </span>
-                <Badge variant={TEAM_STATUS_VARIANT[t.status]}>
-                  {TEAM_STATUS_LABELS[t.status]}
-                </Badge>
-              </div>
-            </button>
+                  <Badge variant={TEAM_STATUS_VARIANT[t.status]}>
+                    {TEAM_STATUS_LABELS[t.status]}
+                  </Badge>
+                </div>
+              </button>
+            </div>
           </li>
         ))}
         {filtered.length === 0 && (
@@ -292,6 +474,21 @@ export default function RegistrationsPage() {
           </li>
         )}
       </ul>
+      {filtered.length > 0 && (
+        <div className="flex items-center gap-2 pt-1">
+          <input
+            type="checkbox"
+            checked={filtered.length > 0 && selectedIds.size === filtered.length}
+            onChange={toggleSelectAll}
+            className="h-4 w-4 rounded border-input accent-primary"
+          />
+          <span className="text-xs text-muted-foreground">
+            {selectedIds.size === filtered.length
+              ? 'Deselect all'
+              : 'Select all visible'}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

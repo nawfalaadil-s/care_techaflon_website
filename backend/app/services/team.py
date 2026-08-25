@@ -314,3 +314,44 @@ def update_problem_statement(db: Session, team: Team, problem_statement_id: str)
     db.commit()
     db.refresh(team)
     return team
+
+
+def delete_team(db: Session, team: Team) -> None:
+    """Delete a team. Submissions cascade-delete via FK."""
+    db.delete(team)
+    db.commit()
+
+
+def bulk_update_team_status(
+    db: Session, team_ids: list[str], new_status: str
+) -> tuple[int, list[str]]:
+    """Update status for multiple teams. Returns (updated_count, errors)."""
+    errors: list[str] = []
+    updated = 0
+    for tid in team_ids:
+        team = db.get(Team, tid)
+        if team is None:
+            errors.append(f"Team {tid} not found")
+            continue
+        team.status = new_status
+        if new_status == "approved" and team.approved_at is None:
+            from datetime import datetime
+            team.approved_at = datetime.utcnow()
+        updated += 1
+    db.commit()
+    return updated, errors
+
+
+def bulk_delete_teams(db: Session, team_ids: list[str]) -> tuple[int, list[str]]:
+    """Delete multiple teams. Returns (deleted_count, errors)."""
+    errors: list[str] = []
+    deleted = 0
+    for tid in team_ids:
+        team = db.get(Team, tid)
+        if team is None:
+            errors.append(f"Team {tid} not found")
+            continue
+        db.delete(team)
+        deleted += 1
+    db.commit()
+    return deleted, errors

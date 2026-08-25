@@ -133,4 +133,32 @@ export const teamApi = {
     const { data } = await apiClient.patch<TeamRecord>(`/teams/${id}`, payload)
     return data
   },
+
+  /** Bulk update status for multiple teams (admin only). */
+  async adminBulkSetStatus(
+    teamIds: string[],
+    status: string,
+  ): Promise<{ updated: number; errors: string[] }> {
+    const { data } = await apiClient.patch<{
+      updated: number
+      errors: string[]
+    }>('/teams/bulk-status', { team_ids: teamIds, status })
+    return data
+  },
+
+  /** Delete a single team (admin only). */
+  async adminDelete(id: string): Promise<void> {
+    await apiClient.delete(`/teams/${id}`)
+  },
+
+  /** Bulk delete multiple teams (admin only). */
+  async adminBulkDelete(
+    teamIds: string[],
+  ): Promise<{ deleted: number; errors: string[] }> {
+    const { data } = await apiClient.post<{
+      deleted: number
+      errors: string[]
+    }>('/teams/bulk-delete', { team_ids: teamIds })
+    return data
+  },
 }

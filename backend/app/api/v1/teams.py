@@ -5,14 +5,20 @@ from app.core.dependencies import get_current_admin, get_current_user
 from app.database.base import get_db
 from app.models.user import User
 from app.schemas.team import (
+    TeamBulkDelete,
+    TeamBulkStatusUpdate,
     TeamCreate,
     TeamResponse,
     TeamUpdate,
     TeamStatusUpdate,
+    BulkOperationResult,
     resolve_ps_title,
 )
 from app.services.team import (
+    bulk_delete_teams,
+    bulk_update_team_status,
     create_team,
+    delete_team,
     get_team_by_id,
     get_team_for_leader,
     update_team,
@@ -75,6 +81,54 @@ def my_team(
     return response
 
 
+# ------------------------------------------------------------------
+# Admin bulk operations — static paths MUST come before /{team_id}
+# ------------------------------------------------------------------
+
+
+@router.patch("/bulk-status", response_model=BulkOperationResult)
+def bulk_update_status_endpoint(
+    payload: TeamBulkStatusUpdate,
+    background: BackgroundTasks,
+    current: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+) -> BulkOperationResult:
+    """Update approval status for multiple teams at once (admin only)."""
+    updated_count, errors = bulk_update_team_status(db, payload.team_ids, payload.status)
+
+    # Queue status-change emails + certificate sends for each updated team.
+    if payload.status == "approved":
+        from sqlalchemy import select as _select
+        from app.models.certificate import Certificate
+
+        certificate = db.scalar(
+            _select(Certificate).where(Certificate.active.is_(True))
+        )
+    else:
+        certificate = None
+
+    for tid in payload.team_ids:
+        team = get_team_by_id(db, tid)
+        if team is None:
+            continue
+        background.add_task(task_send_team_status_update, team.id, payload.status)
+        if payload.status == "approved" and certificate is not None:
+            background.add_task(task_send_team_certificates, team.id, certificate.id)
+
+    return BulkOperationResult(updated=updated_count, errors=errors)
+
+
+@router.post("/bulk-delete", response_model=BulkOperationResult)
+def bulk_delete_endpoint(
+    payload: TeamBulkDelete,
+    current: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+) -> BulkOperationResult:
+    """Delete multiple teams at once (admin only)."""
+    deleted_count, errors = bulk_delete_teams(db, payload.team_ids)
+    return BulkOperationResult(deleted=deleted_count, errors=errors)
+
+
 @router.get("/{team_id}", response_model=TeamResponse)
 def get_team(
     team_id: str,
@@ -91,7 +145,7 @@ def get_team(
     
     # Team leader can view their own team
     # Admin can view any team
-    if team.leader_email != current.email and not current.is_admin:
+    if team.leader_email != current.email and not _is_privileged(current):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to view this team.",
@@ -188,6 +242,22 @@ def update_team_status_endpoint(
     response = TeamResponse.model_validate(updated)
     response.problem_statement_title = resolve_ps_title(db, updated.problem_statement_id)
     return response
+
+
+@router.delete("/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_team_endpoint(
+    team_id: str,
+    current: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    """Delete a team (admin only). Submissions cascade-delete via FK."""
+    team = get_team_by_id(db, team_id)
+    if team is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found.",
+        )
+    delete_team(db, team)
 
 
 @router.get("", response_model=list[TeamResponse])

@@ -222,3 +222,34 @@ class TeamStatusUpdate(BaseModel):
                 f"status must be one of: pending, approved, rejected, disqualified"
             )
         return status_value
+
+
+class TeamBulkStatusUpdate(BaseModel):
+    """Admin bulk update for team statuses."""
+
+    team_ids: list[str] = Field(min_length=1, max_length=100)
+    status: str = Field(min_length=4, max_length=20)
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, value: str) -> str:
+        status_value = value.strip().lower()
+        if status_value not in {"pending", "approved", "rejected", "disqualified"}:
+            raise ValueError(
+                f"status must be one of: pending, approved, rejected, disqualified"
+            )
+        return status_value
+
+
+class TeamBulkDelete(BaseModel):
+    """Admin bulk delete for teams."""
+
+    team_ids: list[str] = Field(min_length=1, max_length=100)
+
+
+class BulkOperationResult(BaseModel):
+    """Result of a bulk operation."""
+
+    updated: int = 0
+    deleted: int = 0
+    errors: list[str] = []
