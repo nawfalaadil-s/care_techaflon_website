@@ -70,16 +70,20 @@ def send_email(
     subject: str,
     body: str,
     attachment: tuple[str, str, bytes] | None = None,
+    html: str | None = None,
 ) -> str:
     """Deliver an email through Gmail. Returns the Gmail message id.
 
     ``attachment`` is ``(filename, content_type, data)`` when present.
+    ``html`` (when present) is added as the preferred alternative part.
     """
     mime = MimeMessage()
     mime["From"] = settings.EMAIL_FROM
     mime["To"] = to_email
     mime["Subject"] = subject
     mime.set_content(body)
+    if html:
+        mime.add_alternative(html, subtype="html")
     if attachment is not None:
         filename, content_type, data = attachment
         maintype, _, subtype = (content_type or "application/octet-stream").partition("/")

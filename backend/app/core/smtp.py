@@ -48,10 +48,12 @@ def send_email(
     subject: str,
     body: str,
     attachment: tuple[str, str, bytes] | None = None,
+    html: str | None = None,
 ) -> None:
     """Deliver one message over SMTP.
 
     ``attachment`` is ``(filename, content_type, data)`` when present.
+    ``html`` (when present) is added as the preferred alternative part.
     Raises ``RuntimeError`` on any failure so the outbox can record it.
     """
     match = _EMAIL_RE.search(settings.EMAIL_FROM)
@@ -64,6 +66,8 @@ def send_email(
     mime["To"] = to_email
     mime["Subject"] = subject
     mime.set_content(body)
+    if html:
+        mime.add_alternative(html, subtype="html")
     _attach(mime, attachment)
 
     try:

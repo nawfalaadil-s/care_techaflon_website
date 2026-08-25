@@ -299,3 +299,93 @@ def test_admin_log_rbac_and_resend() -> None:
     resend = client.post(f"/api/emails/{messages[0].id}/resend", headers=admin)
     assert resend.status_code == 200
     assert resend.json()["status"] in ("logged", "sent")
+
+
+# ---------------------------------------------------------------------------
+# Themed HTML (Avengers: Doomsday) rendering
+# ---------------------------------------------------------------------------
+
+def _assert_doomsday_shell(html: str | None) -> None:
+    assert html is not None, "body_html was never rendered"
+    assert "TECHAFLON" in html
+    assert "Doomsday Protocol" in html
+    assert "Assemble" in html
+    assert html.strip().startswith("<!doctype html>")
+
+
+def test_team_registration_email_is_themed_html() -> None:
+    team = _register_techaflon_team(f"Theme Squad {uuid.uuid4().hex[:6]}")
+
+    db = SessionLocal()
+    try:
+        message = db.scalars(
+            select(EmailMessage)
+            .where(EmailMessage.template == "team_registration_confirmation")
+            .where(EmailMessage.to_email == team["leader_email"])
+        ).first()
+    finally:
+        db.close()
+
+    assert message is not None
+    _assert_doomsday_shell(message.body_html)
+    assert team["team_id"] in message.body_html
+    assert team["team_name"] in message.body_html
+    # Plain-text fallback still present for clients that don't render HTML.
+    assert team["team_id"] in message.body
+
+
+def test_status_emails_are_themed_html_for_approve_and_reject() -> None:
+    admin = _make_admin()
+    team = _register_techaflon_team(f"Verdict Theme {uuid.uuid4().hex[:6]}")
+
+    approved = client.patch(
+        f"/api/teams/{team['id']}/status", json={"status": "approved"}, headers=admin
+    )
+    assert approved.status_code == 200
+
+    messages = _team_status_messages(team["leader_email"])
+    assert len(messages) == 1
+    html = messages[0].body_html or ""
+    _assert_doomsday_shell(html)
+    assert "YOU'RE IN, HERO" in html.upper()
+    assert "APPROVED" in html
+
+    # Now reject the same team — a second themed email must go out.
+    rejected = client.patch(
+        f"/api/teams/{team['id']}/status", json={"status": "rejected"}, headers=admin
+    )
+    assert rejected.status_code == 200
+
+    messages = _team_status_messages(team["leader_email"])
+    assert len(messages) == 2
+    reject_html = messages[1].body_html or ""
+    _assert_doomsday_shell(reject_html)
+    assert "REGISTRATION DECLINED" in reject_html
+    assert "REJECTED" in reject_html
+
+
+def test_submission_email_is_themed_html_with_links() -> None:
+    team = _register_techaflon_team(f"Submit Theme {uuid.uuid4().hex[:6]}")
+    login = client.post(
+        "/api/auth/login",
+        json={"email": team["leader_email"], "password": DEMO_PASSWORD},
+    )
+    token = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    response = client.put(
+        f"/api/teams/{team['id']}/submission",
+        json={
+            "project_name": "Doom Renderer",
+            "description": "Rendering the doomsday clock, one frame at a time.",
+            "repo_url": "https://github.com/example/doom-renderer",
+        },
+        headers=token,
+    )
+    assert response.status_code == 200
+
+    messages = _messages_to(team["leader_email"], "submission_received")
+    assert len(messages) == 1
+    html = messages[0].body_html or ""
+    _assert_doomsday_shell(html)
+    assert "Doom Renderer" in html
+    assert "https://github.com/example/doom-renderer" in html

@@ -36,10 +36,13 @@ def send_email(
     subject: str,
     body: str,
     attachment: tuple[str, str, bytes] | None = None,
+    html: str | None = None,
 ) -> None:
     """Deliver one message via Brevo's HTTPS API.
 
     ``attachment`` is ``(filename, content_type, data)`` when present.
+    ``html`` (when present) is sent as ``htmlContent`` — clients that
+    render HTML will prefer it over the plain-text fallback.
     Raises ``RuntimeError`` on any failure so the outbox can record it.
     """
     match = _EMAIL_RE.search(settings.EMAIL_FROM)
@@ -53,6 +56,9 @@ def send_email(
         "subject": subject,
         "textContent": body,
     }
+
+    if html:
+        payload["htmlContent"] = html
 
     if attachment is not None:
         filename, _content_type, data = attachment

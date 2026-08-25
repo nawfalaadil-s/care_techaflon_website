@@ -31,6 +31,8 @@ class EmailMessage(Base):
     to_email: Mapped[str] = mapped_column(String(320))
     subject: Mapped[str] = mapped_column(String(500))
     body: Mapped[str] = mapped_column(Text)
+    # Themed HTML alternative (multipart/alternative at delivery time).
+    body_html: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     status: Mapped[str] = mapped_column(
         String(20), default="queued", nullable=False, index=True

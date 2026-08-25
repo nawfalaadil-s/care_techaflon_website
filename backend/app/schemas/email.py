@@ -16,6 +16,7 @@ class EmailMessageResponse(BaseModel):
     to_email: str
     subject: str
     body: str
+    body_html: Optional[str] = None
     status: str
     error: Optional[str] = None
     registration_id: Optional[str] = None
