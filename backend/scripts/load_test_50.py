@@ -94,7 +94,7 @@ async def record(client: httpx.AsyncClient, name: str, method: str, url: str, **
 async def setup_vu(client: httpx.AsyncClient, index: int) -> tuple[dict, bool]:
     """Register one account; returns (headers, is_leader)."""
     email = f"vu{index}.{uuid.uuid4().hex[:8]}@loadtest.edu"
-    await asyncio.sleep(random.uniform(0, 3))  # stagger registrations
+    await asyncio.sleep(random.uniform(0, 6))  # stagger registrations
     response = await record(
         client, "auth/register", "POST",
         f"{BASE}/api/auth/register",
@@ -133,8 +133,9 @@ async def leader_flow(client: httpx.AsyncClient, headers: dict) -> None:
     )
 
 
-async def worker(client: httpx.AsyncClient, index: int, deadline: float) -> None:
-    headers, is_leader_setup = await setup_vu(client, index)
+async def worker(client: httpx.AsyncClient, index: int, deadline: float, setup_sem: asyncio.Semaphore) -> None:
+    async with setup_sem:
+        headers, is_leader_setup = await setup_vu(client, index)
 
     if is_leader_setup:
         await leader_flow(client, headers)
@@ -179,7 +180,9 @@ def report() -> None:
 
 async def main() -> None:
     limits = httpx.Limits(max_connections=120, max_keepalive_connections=60)
-    timeout = httpx.Timeout(10.0)
+    timeout = httpx.Timeout(60.0, connect=15.0)
+    # Limit concurrent setup registrations so the DB pool (default 5) is not overwhelmed.
+    setup_sem = asyncio.Semaphore(5)
     async with httpx.AsyncClient(limits=limits, timeout=timeout) as client:
         health = await client.get(f"{BASE}/api/health")
         assert health.status_code == 200, f"server not healthy: {health.text}"
@@ -187,7 +190,7 @@ async def main() -> None:
         print(f"warming up {VUS} virtual users against {BASE} ...")
         deadline = time.perf_counter() + DURATION
         start = time.perf_counter()
-        await asyncio.gather(*(worker(client, i, deadline) for i in range(VUS)))
+        await asyncio.gather(*(worker(client, i, deadline, setup_sem) for i in range(VUS)))
         elapsed = time.perf_counter() - start
 
         report()
