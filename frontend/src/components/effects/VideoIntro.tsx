@@ -106,14 +106,17 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
   const isMobile = dims.w > 0 && dims.w < 640
   const isTablet = dims.w >= 640 && dims.w < 1024
   const titleSize = isMobile
-    ? `${Math.max(36, Math.min(dims.w * 0.14, 72))}px`
+    ? `${Math.max(32, Math.min(dims.w * 0.12, 56))}px`
     : isTablet
       ? `${Math.max(64, Math.min(dims.w * 0.1, 120))}px`
       : 'clamp(5rem, 10vw, 10rem)'
   const subtitleSize = isMobile
-    ? `${Math.max(10, Math.min(dims.w * 0.035, 16))}px`
+    ? `${Math.max(9, Math.min(dims.w * 0.032, 14))}px`
     : 'clamp(0.75rem, 2vw, 1.125rem)'
   const subtitleSpacing = isMobile ? '0.15em' : '0.25em'
+
+  // 9:16 video frame on mobile, full-bleed on desktop
+  const mobileFrameW = dims.h * (9 / 16)
 
   return (
     <div
@@ -128,30 +131,38 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
       onContextMenu={(e) => e.preventDefault()}
       onDoubleClick={(e) => e.preventDefault()}
     >
-      {/* Video — scales to fill viewport, crops overflow */}
-      <video
-        ref={videoRef}
-        src={VIDEO_SRC}
-        autoPlay
-        muted
-        playsInline
-        loop={false}
-        preload="auto"
-        disablePictureInPicture
-        disableRemotePlayback
-        onEnded={handleVideoEnd}
-        onContextMenu={(e) => e.preventDefault()}
+      {/* Video wrapper — 9:16 frame on mobile, full screen on desktop */}
+      <div
         style={{
           position: 'absolute',
-          top: '50%',
+          top: 0,
           left: '50%',
-          // Use the larger dimension so the video always covers the viewport
-          minWidth: dims.h > dims.w ? '100dvh' : '100dvw',
-          minHeight: dims.h > dims.w ? '100dvw' : '100dvh',
-          transform: 'translate(-50%, -50%)',
-          objectFit: 'cover',
+          transform: 'translateX(-50%)',
+          width: isMobile ? mobileFrameW : '100%',
+          height: '100%',
+          overflow: 'hidden',
+          background: '#000',
         }}
-      />
+      >
+        <video
+          ref={videoRef}
+          src={VIDEO_SRC}
+          autoPlay
+          muted
+          playsInline
+          loop={false}
+          preload="auto"
+          disablePictureInPicture
+          disableRemotePlayback
+          onEnded={handleVideoEnd}
+          onContextMenu={(e) => e.preventDefault()}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+        />
+      </div>
 
       {/* Fade overlay */}
       <div
