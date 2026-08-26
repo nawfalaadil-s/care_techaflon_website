@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 
-const STORAGE_KEY = 'techaflon-intro-seen'
 const VIDEO_SRC = '/doom.mp4'
 
 /**
@@ -64,7 +63,6 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
     if (mq.matches) {
-      localStorage.setItem(STORAGE_KEY, '1')
       onComplete()
     }
   }, [onComplete])
@@ -100,7 +98,6 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
     setTimeout(() => {
       if (completedRef.current) return
       completedRef.current = true
-      localStorage.setItem(STORAGE_KEY, '1')
       onComplete()
     }, 3400)
   }

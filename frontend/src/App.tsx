@@ -9,8 +9,6 @@ import { VideoIntro } from '@/components/effects/VideoIntro'
 import HomePage from '@/pages/public/HomePage'
 import PlaceholderPage from '@/pages/public/PlaceholderPage'
 
-const INTRO_KEY = 'techaflon-intro-seen'
-
 // Route-level code splitting: heavy/rarely-visited pages are loaded on demand
 // so the landing experience stays fast on mobile connections.
 const DesignSystemPage = lazy(() => import('@/pages/design/DesignSystemPage'))
@@ -61,9 +59,7 @@ function RouteFallback() {
 }
 
 export default function App() {
-  const [introComplete, setIntroComplete] = useState(
-    () => localStorage.getItem(INTRO_KEY) === '1',
-  )
+  const [introComplete, setIntroComplete] = useState(false)
 
   return (
     <>
