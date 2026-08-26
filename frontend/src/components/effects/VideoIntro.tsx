@@ -14,6 +14,7 @@ const STORAGE_KEY = 'techaflon-intro-seen'
 type Phase = 'VIDEO' | 'FADE_VIDEO' | 'TITLE' | 'FADE_TITLE' | 'DONE'
 
 interface VideoIntroProps {
+  showVideo: boolean
   onComplete: () => void
 }
 
@@ -25,7 +26,7 @@ function getViewportWidth() {
   return window.visualViewport?.width ?? window.innerWidth
 }
 
-export function VideoIntro({ onComplete }: VideoIntroProps) {
+export function VideoIntro({ showVideo, onComplete }: VideoIntroProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [phase, setPhase] = useState<Phase>(showVideo ? 'VIDEO' : 'TITLE')
@@ -68,10 +69,13 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
     }
   }, [onComplete])
 
+  function advance(next: Phase, delay: number) {
+    setTimeout(() => setPhase(next), delay)
+  }
+
   // On mount: request fullscreen + play video (only if showing video)
   useEffect(() => {
     if (!showVideo) {
-      // Return visit — show title directly, then fade out
       advance('FADE_TITLE', 2000)
       setTimeout(() => {
         if (completedRef.current) return
@@ -89,13 +93,8 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
     return () => clearTimeout(timer)
   }, [goFullscreen, showVideo, onComplete])
 
-  function advance(next: Phase, delay: number) {
-    setTimeout(() => setPhase(next), delay)
-  }
-
   function handleVideoEnd() {
     if (phase !== 'VIDEO') return
-    // Exit fullscreen before showing title
     try {
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {})
