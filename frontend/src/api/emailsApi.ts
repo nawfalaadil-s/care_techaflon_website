@@ -2,21 +2,37 @@ import { apiClient } from './client'
 
 export type EmailStatus = 'queued' | 'sent' | 'logged' | 'failed'
 
+/** Full email detail (single-message view). */
 export interface EmailMessage {
   id: string
   template: string
   to_email: string
   subject: string
   body?: string
+  body_html?: string
   status: EmailStatus
   error: string | null
   registration_id: string | null
+  certificate_id: string | null
+  created_at: string
+  sent_at: string | null
+}
+
+/** Lightweight outbox entry — list views (no body payload). */
+export interface EmailMessageSummary {
+  id: string
+  template: string
+  to_email: string
+  subject: string
+  status: EmailStatus
+  error: string | null
+  certificate_id: string | null
   created_at: string
   sent_at: string | null
 }
 
 export interface EmailListResponse {
-  items: EmailMessage[]
+  items: EmailMessageSummary[]
   total: number
 }
 

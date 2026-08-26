@@ -187,7 +187,7 @@ def update_team_endpoint(
     if payload.theme:
         # Validate theme
         theme = payload.theme.strip().lower()
-        if theme not in {"ai-ml", "web", "app"}:
+        if theme not in {"ai-ml", "web"}:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"theme must be one of: ai-ml, web, app",

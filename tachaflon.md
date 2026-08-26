@@ -390,31 +390,31 @@ Steps:
 
 ### PHASE 01 — DEPLOY
 
-Sep 19 — 09:00
+Aug 31 — 09:00
 
 Registration & Kickoff
 
 ### PHASE 02 — BUILD
 
-Sep 19 — 11:00
+Aug 31 — 10:00
 
 Hacking Begins
 
 ### PHASE 03 — CHECKPOINT
 
-Sep 20 — 14:00
+Aug 31 — 14:00
 
 Progress Evaluation
 
 ### PHASE 04 — LOCKDOWN
 
-Sep 21 — 12:00
+Aug 31 — 17:00
 
 Submissions Close
 
 ### PHASE 05 — FINAL SHOWDOWN
 
-Sep 21 — 17:00
+Aug 31 — 18:00
 
 Demos & Awards
 

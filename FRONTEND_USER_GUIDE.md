@@ -71,11 +71,11 @@ The home page is composed of **7 distinct sections** rendered sequentially:
 #### 4. **Timeline Section**
 - **Purpose:** Event schedule
 - **Content:** 5-step timeline from kickoff to awards
-  - Sep 19, 09:00 - Registration & Kickoff
-  - Sep 19, 11:00 - Hacking Begins
-  - Sep 20, 14:00 - Checkpoint
-  - Sep 21, 12:00 - Submissions Close
-  - Sep 21, 17:00 - Demos & Awards
+  - Aug 31, 09:00 - Registration & Kickoff
+  - Aug 31, 10:00 - Hacking Begins
+  - Aug 31, 14:00 - Checkpoint
+  - Aug 31, 17:00 - Submissions Close
+  - Aug 31, 18:00 - Demos & Awards
 - **Animations:** 5 items with 70ms stagger
 
 #### 5. **Prizes Section**
@@ -1381,7 +1381,7 @@ export function cn(...inputs: (string | undefined | null | false)[]) {
 export const event = {
   name: 'HackFest 2026',
   tagline: '48 hours to build something that matters',
-  dateLabel: 'Sep 19 – 21, 2026',
+  dateLabel: 'Aug 31, 2026',
   format: '48-hour in-person',
   location: 'Main Campus · Innovation Hall'
 };
@@ -1404,7 +1404,7 @@ export const tracks = [
 ];
 
 export const timeline = [
-  { date: 'Sep 19', time: '09:00', label: 'Registration', description: '...' },
+  { date: 'Aug 31', time: '09:00', label: 'Registration', description: '...' },
   // ... 4 more
 ];
 

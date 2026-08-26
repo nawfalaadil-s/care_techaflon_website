@@ -6,18 +6,18 @@ TechAFlon - The Doomsday Protocol - Internal Hackathon for CARE College of Engin
 ## Event Details
 - **Event Name**: TechAFlon
 - **Theme**: Avengers: Doomsday
-- **Date**: August 28, 2026 (10:00 AM IST)
+- **Date**: August 31, 2026 (10:00 AM IST)
 - **Organizer**: CSSA (Computer Science Students Association)
 - **Eligible Departments**: CSE, AI & DS
 - **Team Size**: 3-4 members
-- **Registration Window**: August 24-26, 2026
+- **Registration Window**: August 27-29, 2026
 
 ## Completed Implementation
 
 ### Frontend
 1. ✅ Homepage redesign with Doomsday theme
 2. ✅ Countdown timer (Days : Hours : Minutes : Seconds)
-3. ✅ Event date: August 28, 2026 at 10:00 AM IST
+3. ✅ Event date: August 31, 2026 at 10:00 AM IST
 4. ✅ Updated FAQ page with TechAFlon-specific questions
 5. ✅ Updated Rules page with correct event rules
 6. ✅ Team registration form (CSE/AI-DS specific)
@@ -125,7 +125,7 @@ frontend/
 ```
 
 ## Countdown Timer Status
-**Target**: August 28, 2026 at 10:00 AM IST
+**Target**: August 31, 2026 at 10:00 AM IST
 **Current**: August 23, 2026 at 14:21:52 UTC
 **Remaining**: ~4 days, 14 hours, 38 minutes
 

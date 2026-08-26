@@ -1,7 +1,7 @@
 import { apiClient } from './client'
 
 /** Valid TechAFlon themes (mirrors backend schemas/team.py). */
-export const TEAM_THEMES = ['ai-ml', 'web', 'app'] as const
+export const TEAM_THEMES = ['ai-ml', 'web'] as const
 
 /** Partial team edit — only provided fields are changed by the backend.
  *  Leaders may change team_name/theme; admins may also set the venue. */

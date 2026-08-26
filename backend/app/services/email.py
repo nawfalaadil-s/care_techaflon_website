@@ -12,11 +12,12 @@ Every notification follows the same safe path:
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core import brevo, gmail, smtp
 from app.core.config import settings
@@ -27,13 +28,15 @@ from app.models.email_message import EmailMessage
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.orm import Session
 
+log = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # Templates (plain text; keys are stable identifiers stored on each row)
 # ---------------------------------------------------------------------------
 
 EVENT_NAME = "TechAFlon"
 
-_THEME_DISPLAY = {"ai-ml": "AI / ML", "web": "Web Development", "app": "App Development"}
+_THEME_DISPLAY = {"ai-ml": "AI / ML", "web": "Web Development"}
 
 
 def _render_registration_confirmation(context: dict[str, Any]) -> tuple[str, str]:
@@ -539,6 +542,12 @@ def _deliver(
         smtp.send_email(to_email, subject, body, attachment=attachment, html=html)
         return "sent"
     # Log mode: no transport configured (dev/test).
+    log.warning(
+        "No email transport configured (Gmail/Brevo/SMTP). "
+        "Message to %s queued as 'logged' — set EMAIL_ENABLED and transport "
+        "credentials to enable real delivery.",
+        to_email,
+    )
     return "logged"
 
 
@@ -708,6 +717,14 @@ def list_messages(
     if status_filter:
         query = query.where(EmailMessage.status == status_filter)
     return list(db.scalars(query.limit(limit)))
+
+
+def count_messages(db: "Session", status_filter: str | None = None) -> int:
+    """Return the total number of outbox messages matching the filter."""
+    query = select(func.count(EmailMessage.id))
+    if status_filter:
+        query = query.where(EmailMessage.status == status_filter)
+    return db.scalar(query) or 0
 
 
 def get_message(db: "Session", message_id: str) -> EmailMessage:

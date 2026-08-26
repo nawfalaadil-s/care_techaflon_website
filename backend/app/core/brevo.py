@@ -24,11 +24,28 @@ API_URL = "https://api.brevo.com/v3/smtp/email"
 
 # Matches "Name <a@b.c>" or a bare address inside EMAIL_FROM.
 _EMAIL_RE = re.compile(r"([^@\s]+@[^@\s]+\.[^\s@>,]+)")
+# Extracts the display-name portion from "Name <a@b.c>".
+_NAME_RE = re.compile(r"^\s*([^<]+?)\s*<")
 
 
 def brevo_configured() -> bool:
     """True when an API key is present."""
     return bool(settings.BREVO_API_KEY)
+
+
+def _extract_sender() -> dict[str, str]:
+    """Parse EMAIL_FROM into ``{"email": ..., "name": ...}`` for the Brevo API."""
+    match = _EMAIL_RE.search(settings.EMAIL_FROM)
+    if not match:
+        raise RuntimeError(f"EMAIL_FROM '{settings.EMAIL_FROM}' has no usable address.")
+    address = match.group(0)
+
+    name_match = _NAME_RE.match(settings.EMAIL_FROM)
+    name = name_match.group(1).strip() if name_match else ""
+    sender: dict[str, str] = {"email": address}
+    if name:
+        sender["name"] = name
+    return sender
 
 
 def send_email(
@@ -45,13 +62,8 @@ def send_email(
     render HTML will prefer it over the plain-text fallback.
     Raises ``RuntimeError`` on any failure so the outbox can record it.
     """
-    match = _EMAIL_RE.search(settings.EMAIL_FROM)
-    if not match:
-        raise RuntimeError(f"EMAIL_FROM '{settings.EMAIL_FROM}' has no usable address.")
-    from_addr = match.group(0)
-
     payload: dict = {
-        "sender": {"email": from_addr},
+        "sender": _extract_sender(),
         "to": [{"email": to_email}],
         "subject": subject,
         "textContent": body,

@@ -6,7 +6,7 @@
  * 
  * Theme: TechAFlon — The Doomsday Protocol
  * Departments: CSE × AI & DS
- * Event Date: 28 August 2026
+ * Event Date: 31 August 2026
  */
 
 export interface TeamMember {
@@ -71,10 +71,10 @@ export const homeContent: HomeContent = {
     tagline: 'THE DOOMSDAY PROTOCOL',
     description:
       'An internal innovation hackathon for CSE and AI & DS students of CARE College of Engineering, Trichy.',
-    dateLabel: '28 AUGUST 2026',
+    dateLabel: '31 AUGUST 2026',
     format: 'Internal Hackathon',
     location: 'CARE College of Engineering, Trichy',
-    startDate: '2026-08-28T10:00:00+05:30',
+    startDate: '2026-08-31T10:00:00+05:30',
   },
   hero: {
     eyebrow: 'CSSA PRESENTS',
@@ -84,7 +84,7 @@ export const homeContent: HomeContent = {
       'The clock is running. Build what comes next. An internal hackathon for CSE × AI & DS students.',
   },
   stats: [
-    { value: '28', label: 'August' },
+    { value: '31', label: 'August' },
     { value: 'CSE × AI & DS', label: 'Departments' },
     { value: 'TBD', label: 'Venue' },
   ],
@@ -103,13 +103,7 @@ export const homeContent: HomeContent = {
       description:
         'Fast, accessible applications and services built for the real web.',
     },
-    {
-      id: 'app',
-      icon: '▣',
-      title: 'App Development',
-      description:
-        'Native and cross-platform apps that work well on the go.',
-    },
+
   ],
   timeline: [],
   prizes: [],
@@ -165,13 +159,13 @@ export const homeContent: HomeContent = {
   phases: [
     {
       phase: 'Phase 1',
-      date: '28.08.2026',
+      date: '31.08.2026',
       description: 'Event Phase - Problem statements provided on spot',
       status: 'UPCOMING',
     },
     {
       phase: 'Registration',
-      date: '24.08.2026 - 26.08.2026',
+      date: '27.08.2026 - 29.08.2026',
       description: 'Registration opens and closes',
       status: 'UPCOMING',
     },

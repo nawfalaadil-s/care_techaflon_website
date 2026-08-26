@@ -32,11 +32,11 @@ const RULES = [
     critical: false,
   },
   {
-    text: 'The selected development theme (AI/ML, Web Development, or App Development) must be provided during registration.',
+    text: 'The selected development theme (AI/ML or Web Development) must be provided during registration.',
     critical: false,
   },
   {
-    text: 'Problem statements will be provided during Event Phase 1 on 28 August 2026.',
+    text: 'Problem statements will be provided during Event Phase 1 on 31 August 2026.',
     critical: false,
   },
   {

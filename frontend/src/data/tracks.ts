@@ -3,7 +3,6 @@
 export const THEME_LABELS: Record<string, string> = {
   'ai-ml': 'AI / ML',
   web: 'Web Development',
-  app: 'App Development',
 }
 
 export const THEME_OPTIONS = Object.entries(THEME_LABELS).map(

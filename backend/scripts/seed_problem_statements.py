@@ -1,4 +1,4 @@
-"""Seed the 3 starter problem statements (idempotent by title)."""
+"""Seed the 2 starter problem statements (idempotent by title)."""
 
 import os
 import sys
@@ -24,12 +24,6 @@ STATEMENTS = [
         "A real-time web platform tracking capacity, resources, and safety of survivor shelters.",
         "Create a responsive web app where shelter coordinators post live capacity and resource data, survivors search safe locations, and organizers view a city-wide heat map. Offline-first behavior and accessibility are scored.",
         "web", "medium",
-    ),
-    (
-        "Last Signal",
-        "A mobile companion app that keeps teams coordinated when infrastructure fails.",
-        "Build an Android/iOS app with mesh-style check-ins, low-bandwidth messaging, and battery-aware location pings so rescue squads stay synced. Reliability under poor connectivity is the core challenge.",
-        "app", "medium",
     ),
 ]
 

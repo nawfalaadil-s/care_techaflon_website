@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -25,6 +26,11 @@ from app.core.config import settings
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+
+# Module-level token cache: (access_token, expires_at_epoch)
+_token_cache: tuple[str, float] | None = None
+# Google refresh tokens are valid for hours; we re-use for 50 minutes.
+_TOKEN_TTL_SECONDS = 50 * 60
 
 
 def gmail_configured() -> bool:
@@ -40,7 +46,19 @@ def gmail_configured() -> bool:
 
 
 def _access_token() -> str:
-    """Exchange the long-lived refresh token for a short-lived access token."""
+    """Exchange the long-lived refresh token for a short-lived access token.
+
+    Tokens are cached at module level for ``_TOKEN_TTL_SECONDS`` to avoid
+    a round-trip to Google on every single email send.
+    """
+    global _token_cache  # noqa: PLW0603
+    now = time.monotonic()
+
+    if _token_cache is not None:
+        token, expires_at = _token_cache
+        if now < expires_at:
+            return token
+
     data = urllib.parse.urlencode(
         {
             "client_id": settings.GMAIL_CLIENT_ID,
@@ -62,7 +80,10 @@ def _access_token() -> str:
 
     if "access_token" not in payload:
         raise RuntimeError("Gmail token refresh returned no access_token.")
-    return str(payload["access_token"])
+
+    token = str(payload["access_token"])
+    _token_cache = (token, now + _TOKEN_TTL_SECONDS)
+    return token
 
 
 def send_email(

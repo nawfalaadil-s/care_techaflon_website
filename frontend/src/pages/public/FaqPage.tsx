@@ -49,11 +49,11 @@ const FAQ_CATEGORIES = [
       },
       {
         question: 'When does registration open?',
-        answer: 'Registration opens on 24 August 2026.',
+        answer: 'Registration opens on 27 August 2026.',
       },
       {
         question: 'When does registration close?',
-        answer: 'Registration closes on 26 August 2026.',
+        answer: 'Registration closes on 29 August 2026.',
       },
     ],
   },
@@ -63,7 +63,7 @@ const FAQ_CATEGORIES = [
     items: [
       {
         question: 'When is Event Phase 1?',
-        answer: 'Event Phase 1 takes place on 28 August 2026.',
+        answer: 'Event Phase 1 takes place on 31 August 2026.',
       },
       {
         question: 'What happens during Phase 1?',
@@ -71,7 +71,7 @@ const FAQ_CATEGORIES = [
       },
       {
         question: 'What themes can teams choose during registration?',
-        answer: 'Teams can choose one of the following development themes: AI / ML, Web Development, or App Development.',
+        answer: 'Teams can choose one of the following development themes: AI / ML or Web Development.',
       },
     ],
   },
@@ -81,7 +81,7 @@ const FAQ_CATEGORIES = [
     items: [
       {
         question: 'When will the problem statement be available?',
-        answer: 'Problem statements will be provided during Event Phase 1 on 28 August 2026.',
+        answer: 'Problem statements will be provided during Event Phase 1 on 31 August 2026.',
       },
       {
         question: 'How will we receive our problem statement?',

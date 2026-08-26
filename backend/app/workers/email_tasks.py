@@ -11,10 +11,13 @@ Celery tasks; their bodies are broker-agnostic by design.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.database.base import SessionLocal
 from app.services import email
+
+log = logging.getLogger(__name__)
 
 
 def _registration_context(registration) -> dict[str, Any]:
@@ -34,6 +37,7 @@ def task_send_registration_confirmation(registration_id: str) -> None:
     try:
         registration = db.get(Registration, registration_id)
         if registration is None:
+            log.warning("registration_confirmation: registration %s not found", registration_id)
             return
         email.send_notification(
             template="registration_confirmation",
@@ -41,8 +45,8 @@ def task_send_registration_confirmation(registration_id: str) -> None:
             context=_registration_context(registration),
             registration_id=registration.id,
         )
-    except Exception:  # pragma: no cover - background tasks must not raise
-        pass
+    except Exception:
+        log.exception("registration_confirmation: failed for registration %s", registration_id)
     finally:
         db.close()
 
@@ -55,6 +59,7 @@ def task_send_registration_decision(registration_id: str, new_status: str) -> No
     try:
         registration = db.get(Registration, registration_id)
         if registration is None:
+            log.warning("registration_decision: registration %s not found", registration_id)
             return
         context = _registration_context(registration)
         context["status"] = new_status
@@ -64,8 +69,8 @@ def task_send_registration_decision(registration_id: str, new_status: str) -> No
             context=context,
             registration_id=registration.id,
         )
-    except Exception:  # pragma: no cover - background tasks must not raise
-        pass
+    except Exception:
+        log.exception("registration_decision: failed for registration %s", registration_id)
     finally:
         db.close()
 
@@ -82,6 +87,7 @@ def task_send_submission_received(registration_id: str, project_name: str, repo_
     try:
         team = db.get(Team, registration_id)
         if team is None:
+            log.warning("submission_received: team %s not found", registration_id)
             return
         context = {
             "team_id": team.team_id,
@@ -98,8 +104,8 @@ def task_send_submission_received(registration_id: str, project_name: str, repo_
             to_email=team.leader_email,
             context=context,
         )
-    except Exception:  # pragma: no cover
-        pass
+    except Exception:
+        log.exception("submission_received: failed for team %s", registration_id)
     finally:
         db.close()
 
@@ -112,6 +118,7 @@ def task_send_team_confirmation(team_id: str) -> None:
     try:
         team = db.get(Team, team_id)
         if team is None:
+            log.warning("team_confirmation: team %s not found", team_id)
             return
         context = {
             "team_id": team.team_id,
@@ -130,8 +137,8 @@ def task_send_team_confirmation(team_id: str) -> None:
             to_email=team.leader_email,
             context=context,
         )
-    except Exception:  # pragma: no cover - background tasks must not raise
-        pass
+    except Exception:
+        log.exception("team_confirmation: failed for team %s", team_id)
     finally:
         db.close()
 
@@ -144,6 +151,7 @@ def task_send_team_status_update(team_id: str, new_status: str) -> None:
     try:
         team = db.get(Team, team_id)
         if team is None:
+            log.warning("team_status_update: team %s not found", team_id)
             return
         context = {
             "team_id": team.team_id,
@@ -156,8 +164,8 @@ def task_send_team_status_update(team_id: str, new_status: str) -> None:
             to_email=team.leader_email,
             context=context,
         )
-    except Exception:  # pragma: no cover - background tasks must not raise
-        pass
+    except Exception:
+        log.exception("team_status_update: failed for team %s", team_id)
     finally:
         db.close()
 
@@ -178,6 +186,10 @@ def task_send_team_certificates(team_id: str, certificate_id: str) -> None:
         team = db.get(Team, team_id)
         certificate = db.get(Certificate, certificate_id)
         if team is None or certificate is None:
+            log.warning(
+                "team_certificates: team=%s certificate=%s not found",
+                team_id, certificate_id,
+            )
             return
 
         recipients: list[tuple[str, str]] = [(team.leader_email, team.leader_name)]
@@ -205,9 +217,12 @@ def task_send_team_certificates(team_id: str, certificate_id: str) -> None:
                     },
                     certificate_id=certificate_id,
                 )
-            except Exception:  # pragma: no cover - one bad row must not stop the rest
-                continue
-    except Exception:  # pragma: no cover - background tasks must not raise
-        pass
+            except Exception:
+                log.exception(
+                    "team_certificates: failed to send to %s (team %s, cert %s)",
+                    to_email, team_id, certificate_id,
+                )
+    except Exception:
+        log.exception("team_certificates: unexpected error for team %s", team_id)
     finally:
         db.close()

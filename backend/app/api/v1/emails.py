@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_admin
 from app.database.base import get_db
 from app.models.user import User
-from app.schemas.email import EmailListResponse, EmailMessageResponse
-from app.services.email import get_message, list_messages, resend_message
+from app.schemas.email import EmailListResponse, EmailMessageResponse, EmailMessageSummary
+from app.services.email import count_messages, get_message, list_messages, resend_message
 
 router = APIRouter(prefix="/emails", tags=["emails"])
 
@@ -22,9 +22,10 @@ def list_emails(
     """Newest-first delivery log (organizer/admin only)."""
     _ = current
     items = list_messages(db, limit=limit, status_filter=status_filter)
+    total = count_messages(db, status_filter=status_filter)
     return EmailListResponse(
-        items=[EmailMessageResponse.model_validate(m) for m in items],
-        total=len(items),
+        items=[EmailMessageSummary.model_validate(m) for m in items],
+        total=total,
     )
 
 

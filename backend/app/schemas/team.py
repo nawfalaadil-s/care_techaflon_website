@@ -6,7 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Valid themes for TechAFlon
-TEAM_THEMES = {"ai-ml", "web", "app"}
+TEAM_THEMES = {"ai-ml", "web"}
 
 # Themes selectable during public registration (event offers exactly two).
 REGISTRATION_THEMES = {"ai-ml", "web"}

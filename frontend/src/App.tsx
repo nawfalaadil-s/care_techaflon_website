@@ -1,12 +1,15 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 
 import { RequireAdmin, RequireAuth } from '@/components/common'
 import { AdminShell } from '@/components/admin/AdminShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { Spinner } from '@/components/ui/spinner'
+import { VideoIntro } from '@/components/effects/VideoIntro'
 import HomePage from '@/pages/public/HomePage'
 import PlaceholderPage from '@/pages/public/PlaceholderPage'
+
+const INTRO_KEY = 'techaflon-intro-seen'
 
 // Route-level code splitting: heavy/rarely-visited pages are loaded on demand
 // so the landing experience stays fast on mobile connections.
@@ -58,63 +61,73 @@ function RouteFallback() {
 }
 
 export default function App() {
+  const [introComplete, setIntroComplete] = useState(
+    () => localStorage.getItem(INTRO_KEY) === '1',
+  )
+
   return (
-    <Suspense fallback={<RouteFallback />}>
-      <Routes>
-        <Route element={<PublicLayout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/design-system" element={<DesignSystemPage />} />
-          <Route path="/register" element={<RegistrationPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/problems" element={<ProblemsPage />} />
-          <Route
-            path="/account"
-            element={
-              <RequireAuth>
-                <AccountPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/change-password"
-            element={
-              <RequireAuth>
-                <ChangePasswordPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/portal"
-            element={
-              <RequireAuth>
-                <PortalPage />
-              </RequireAuth>
-            }
-          />
-          <Route path="/faq" element={<FaqPage />} />
-          <Route path="/rules" element={<RulesPage />} />
-          <Route
-            element={
-              <RequireAdmin>
-                <AdminShell />
-              </RequireAdmin>
-            }
-          >
-            <Route path="/admin" element={<DashboardPage />} />
-            <Route path="/admin/registrations" element={<RegistrationsPage />} />
-            <Route path="/admin/submissions" element={<AdminSubmissionsPage />} />
-            <Route path="/admin/venue" element={<AdminVenuePage />} />
-            <Route path="/admin/allocations" element={<AdminAllocationsPage />} />
-            <Route path="/admin/problems" element={<ProblemsAdminPage />} />
-            <Route path="/admin/emails" element={<AdminEmailsPage />} />
-            <Route path="/admin/certificates" element={<AdminCertificatesPage />} />
-            <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
-            <Route path="/admin/settings" element={<AdminSettingsPage />} />
-            <Route path="/admin/account" element={<AdminAccountPage />} />
+    <>
+      {!introComplete && (
+        <VideoIntro onComplete={() => setIntroComplete(true)} />
+      )}
+
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/design-system" element={<DesignSystemPage />} />
+            <Route path="/register" element={<RegistrationPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/problems" element={<ProblemsPage />} />
+            <Route
+              path="/account"
+              element={
+                <RequireAuth>
+                  <AccountPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/change-password"
+              element={
+                <RequireAuth>
+                  <ChangePasswordPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/portal"
+              element={
+                <RequireAuth>
+                  <PortalPage />
+                </RequireAuth>
+              }
+            />
+            <Route path="/faq" element={<FaqPage />} />
+            <Route path="/rules" element={<RulesPage />} />
+            <Route
+              element={
+                <RequireAdmin>
+                  <AdminShell />
+                </RequireAdmin>
+              }
+            >
+              <Route path="/admin" element={<DashboardPage />} />
+              <Route path="/admin/registrations" element={<RegistrationsPage />} />
+              <Route path="/admin/submissions" element={<AdminSubmissionsPage />} />
+              <Route path="/admin/venue" element={<AdminVenuePage />} />
+              <Route path="/admin/allocations" element={<AdminAllocationsPage />} />
+              <Route path="/admin/problems" element={<ProblemsAdminPage />} />
+              <Route path="/admin/emails" element={<AdminEmailsPage />} />
+              <Route path="/admin/certificates" element={<AdminCertificatesPage />} />
+              <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+              <Route path="/admin/settings" element={<AdminSettingsPage />} />
+              <Route path="/admin/account" element={<AdminAccountPage />} />
+            </Route>
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+    </>
   )
 }

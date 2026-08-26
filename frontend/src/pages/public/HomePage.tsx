@@ -7,13 +7,13 @@ import { DoomCore } from '@/components/home/DoomCore'
 import { Reveal } from '@/components/common/Reveal'
 import { homeContent } from '@/data/home'
 
-/** Event Phase 1 — 28 August 2026, Asia/Kolkata. */
-const EVENT_DATE = new Date('2026-08-28T10:00:00+05:30')
+/** Event Phase 1 — 31 August 2026, Asia/Kolkata. */
+const EVENT_DATE = new Date('2026-08-31T10:00:00+05:30')
 
 const TIMELINE = [
-  { date: '24 AUG', label: 'REGISTRATION OPENS' },
-  { date: '26 AUG', label: 'REGISTRATION CLOSES' },
-  { date: '28 AUG', label: 'EVENT PHASE 01' },
+  { date: '27 AUG', label: 'REGISTRATION OPENS' },
+  { date: '29 AUG', label: 'REGISTRATION CLOSES' },
+  { date: '31 AUG', label: 'EVENT PHASE 01' },
 ] as const
 
 const ELIGIBILITY = [
@@ -154,7 +154,7 @@ export default function HomePage() {
                     CSE × AI &amp; DS
                   </span>
                   <span className="font-mono text-xs tracking-widest text-muted-foreground">
-                    28 AUGUST 2026 · CARE COLLEGE OF ENGINEERING, TRICHY
+                    31 AUGUST 2026 · CARE COLLEGE OF ENGINEERING, TRICHY
                   </span>
                 </div>
 
@@ -360,7 +360,7 @@ export default function HomePage() {
                 READY FOR DOOMSDAY?
               </h2>
               <p className="mx-auto mt-6 max-w-md text-sm leading-relaxed text-steel-bright sm:text-base">
-                Registration closes 26 August. Assemble your team before the
+                Registration closes 29 August. Assemble your team before the
                 clock runs out.
               </p>
               <div className="mt-10 flex justify-center">

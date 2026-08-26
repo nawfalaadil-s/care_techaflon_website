@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { emailsApi, type EmailMessage, type EmailStatus } from '@/api/emailsApi'
+import {
+  emailsApi,
+  type EmailMessage,
+  type EmailMessageSummary,
+  type EmailStatus,
+} from '@/api/emailsApi'
 import { normalizeApiError } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,7 +31,13 @@ const TEMPLATE_LABELS: Record<string, string> = {
   registration_confirmation: 'Registration received',
   registration_decision: 'Review decision',
   submission_received: 'Submission confirmed',
+  team_registration_confirmation: 'Team registered',
+  team_status_update: 'Team status update',
+  certificate_award: 'Certificate awarded',
 }
+
+/** Auto-refresh interval in ms. */
+const REFRESH_INTERVAL = 15_000
 
 type LoadState =
   | { kind: 'loading' }
@@ -35,12 +46,14 @@ type LoadState =
 
 export default function AdminEmailsPage() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
-  const [messages, setMessages] = useState<EmailMessage[]>([])
+  const [messages, setMessages] = useState<EmailMessageSummary[]>([])
   const [total, setTotal] = useState(0)
   const [filter, setFilter] = useState<EmailStatus | 'all'>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [bodyById, setBodyById] = useState<Record<string, string>>({})
+  const [detailById, setDetailById] = useState<Record<string, EmailMessage>>({})
   const [resendingId, setResendingId] = useState<string | null>(null)
+  const [previewHtml, setPreviewHtml] = useState(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' })
@@ -61,18 +74,29 @@ export default function AdminEmailsPage() {
     void load()
   }, [load])
 
+  // Auto-refresh every REFRESH_INTERVAL ms
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      void load()
+    }, REFRESH_INTERVAL)
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+  }, [load])
+
   async function toggleExpand(id: string) {
     if (expandedId === id) {
       setExpandedId(null)
       return
     }
     setExpandedId(id)
-    if (!bodyById[id]) {
+    setPreviewHtml(false)
+    if (!detailById[id]) {
       try {
         const full = await emailsApi.get(id)
-        setBodyById((prev) => ({ ...prev, [id]: full.body ?? '' }))
+        setDetailById((prev) => ({ ...prev, [id]: full }))
       } catch {
-        setBodyById((prev) => ({ ...prev, [id]: '(could not load body)' }))
+        /* keep previous state */
       }
     }
   }
@@ -81,7 +105,21 @@ export default function AdminEmailsPage() {
     setResendingId(id)
     try {
       const updated = await emailsApi.resend(id)
-      setMessages((prev) => prev.map((m) => (m.id === id ? updated : m)))
+      // Update the summary in the list
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === id
+            ? {
+                ...m,
+                status: updated.status,
+                sent_at: updated.sent_at,
+                error: updated.error,
+              }
+            : m,
+        ),
+      )
+      // Also update the detail cache
+      setDetailById((prev) => ({ ...prev, [id]: updated }))
     } catch {
       /* row keeps its previous state; admin can retry */
     } finally {
@@ -105,7 +143,7 @@ export default function AdminEmailsPage() {
             role="alert"
             className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
           >
-            Couldn’t load the outbox. {state.message}
+            Couldn't load the outbox. {state.message}
           </div>
           <Button variant="outline" onClick={() => void load()}>
             Try again
@@ -118,7 +156,7 @@ export default function AdminEmailsPage() {
   return (
     <div className="space-y-4">
       {/* Status filter chips */}
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by status">
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by status">
         {STATUS_FILTERS.map((f) => (
           <button
             key={f.value}
@@ -134,6 +172,9 @@ export default function AdminEmailsPage() {
             {f.label}
           </button>
         ))}
+        <span className="ml-auto text-xs text-muted-foreground">
+          Auto-refresh {REFRESH_INTERVAL / 1000}s
+        </span>
       </div>
 
       <p className="text-sm text-muted-foreground" aria-live="polite">
@@ -143,66 +184,107 @@ export default function AdminEmailsPage() {
       {messages.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No messages{filter !== 'all' ? ` with status “${filter}”` : ' yet'}.
+            No messages{filter !== 'all' ? ` with status "${filter}"` : ' yet'}.
           </CardContent>
         </Card>
       ) : (
         <ul className="space-y-2">
-          {messages.map((m) => (
-            <li key={m.id}>
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void toggleExpand(m.id)}
-                      className="min-w-0 flex-1 text-left"
-                      aria-expanded={expandedId === m.id}
-                    >
-                      <span className="block truncate text-sm font-medium">
-                        {m.subject}
-                      </span>
-                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                        {TEMPLATE_LABELS[m.template] ?? m.template} · {m.to_email} ·{' '}
-                        {new Date(m.created_at).toLocaleString()}
-                      </span>
-                    </button>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Badge variant={STATUS_VARIANT[m.status]}>{m.status}</Badge>
-                      {(m.status === 'failed' || m.status === 'logged') && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={resendingId === m.id}
-                          onClick={() => void resend(m.id)}
-                        >
-                          {resendingId === m.id ? (
-                            <>
-                              <Spinner size="sm" /> Resending…
-                            </>
-                          ) : (
-                            'Resend'
-                          )}
-                        </Button>
-                      )}
+          {messages.map((m) => {
+            const detail = detailById[m.id]
+            return (
+              <li key={m.id}>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void toggleExpand(m.id)}
+                        className="min-w-0 flex-1 text-left"
+                        aria-expanded={expandedId === m.id}
+                      >
+                        <span className="block truncate text-sm font-medium">
+                          {m.subject}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                          {TEMPLATE_LABELS[m.template] ?? m.template} · {m.to_email} ·{' '}
+                          {new Date(m.created_at).toLocaleString()}
+                        </span>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Badge variant={STATUS_VARIANT[m.status]}>{m.status}</Badge>
+                        {(m.status === 'failed' || m.status === 'logged') && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={resendingId === m.id}
+                            onClick={() => void resend(m.id)}
+                          >
+                            {resendingId === m.id ? (
+                              <>
+                                <Spinner size="sm" /> Resending…
+                              </>
+                            ) : (
+                              'Resend'
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {m.error && (
-                    <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
-                      {m.error}
-                    </p>
-                  )}
+                    {m.error && (
+                      <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+                        {m.error}
+                      </p>
+                    )}
 
-                  {expandedId === m.id && (
-                    <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/40 p-3 font-mono text-xs leading-relaxed">
-                      {bodyById[m.id] ?? 'Loading…'}
-                    </pre>
-                  )}
-                </CardContent>
-              </Card>
-            </li>
-          ))}
+                    {expandedId === m.id && (
+                      <div className="mt-3">
+                        {detail && detail.body_html && (
+                          <div className="mb-2 flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewHtml(false)}
+                              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                                !previewHtml
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-muted text-muted-foreground hover:bg-accent'
+                              }`}
+                            >
+                              Plain text
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPreviewHtml(true)}
+                              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                                previewHtml
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-muted text-muted-foreground hover:bg-accent'
+                              }`}
+                            >
+                              HTML preview
+                            </button>
+                          </div>
+                        )}
+
+                        {previewHtml && detail?.body_html ? (
+                          <iframe
+                            srcDoc={detail.body_html}
+                            title="Email HTML preview"
+                            className="h-96 w-full overflow-auto rounded-md border bg-white"
+                            sandbox="allow-same-origin"
+                          />
+                        ) : (
+                          <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/40 p-3 font-mono text-xs leading-relaxed">
+                            {detail?.body ?? 'Loading…'}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>

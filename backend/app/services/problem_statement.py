@@ -50,7 +50,7 @@ def get_published(db: "Session", statement_id: str) -> ProblemStatement:
 
 
 # Human-readable theme tags used in auto-generated IDs (PS-AIML-001).
-_THEME_TAGS = {"ai-ml": "AIML", "web": "WEB", "app": "APP"}
+_THEME_TAGS = {"ai-ml": "AIML", "web": "WEB"}
 
 
 def generate_statement_id(db: "Session", track: str) -> str:
