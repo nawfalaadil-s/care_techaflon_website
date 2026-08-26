@@ -17,11 +17,34 @@ interface VideoIntroProps {
   onComplete: () => void
 }
 
+function getViewportHeight() {
+  return window.visualViewport?.height ?? window.innerHeight
+}
+
+function getViewportWidth() {
+  return window.visualViewport?.width ?? window.innerWidth
+}
+
 export function VideoIntro({ onComplete }: VideoIntroProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [phase, setPhase] = useState<Phase>('VIDEO')
+  const [dims, setDims] = useState({ w: 0, h: 0 })
   const completedRef = useRef(false)
+
+  // Measure real viewport (handles on-screen keyboard, browser chrome changes)
+  useEffect(() => {
+    function update() {
+      setDims({ w: getViewportWidth(), h: getViewportHeight() })
+    }
+    update()
+    window.visualViewport?.addEventListener('resize', update)
+    window.addEventListener('resize', update)
+    return () => {
+      window.visualViewport?.removeEventListener('resize', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [])
 
   const goFullscreen = useCallback(async (el: HTMLElement) => {
     try {
@@ -71,13 +94,9 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
         ;(document as any).webkitExitFullscreen?.()
       }
     } catch {}
-    // 1. Fade video out
     setPhase('FADE_VIDEO')
-    // 2. After fade, show title
     advance('TITLE', 600)
-    // 3. Hold title, then fade it
     advance('FADE_TITLE', 2600)
-    // 4. Unmount
     setTimeout(() => {
       if (completedRef.current) return
       completedRef.current = true
@@ -86,23 +105,33 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
     }, 3400)
   }
 
+  // Responsive title sizing based on actual viewport
+  const isMobile = dims.w > 0 && dims.w < 640
+  const isTablet = dims.w >= 640 && dims.w < 1024
+  const titleSize = isMobile
+    ? `${Math.max(36, Math.min(dims.w * 0.14, 72))}px`
+    : isTablet
+      ? `${Math.max(64, Math.min(dims.w * 0.1, 120))}px`
+      : 'clamp(5rem, 10vw, 10rem)'
+  const subtitleSize = isMobile
+    ? `${Math.max(10, Math.min(dims.w * 0.035, 16))}px`
+    : 'clamp(0.75rem, 2vw, 1.125rem)'
+  const subtitleSpacing = isMobile ? '0.15em' : '0.25em'
+
   return (
     <div
       ref={containerRef}
       className="fixed inset-0 z-50 bg-black"
       style={{
-        // Prevent iOS bounce, rubber-banding, and pinch zoom
         touchAction: 'none',
         overscrollBehavior: 'none',
-        // Hide browser chrome on mobile
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        width: '100vw',
+        height: '100dvh',
       }}
       onContextMenu={(e) => e.preventDefault()}
       onDoubleClick={(e) => e.preventDefault()}
     >
-      {/* Video layer */}
+      {/* Video — scales to fill viewport, crops overflow */}
       <video
         ref={videoRef}
         src={VIDEO_SRC}
@@ -113,21 +142,21 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
         preload="auto"
         disablePictureInPicture
         disableRemotePlayback
-        onEnded={() => handleVideoEnd()}
+        onEnded={handleVideoEnd}
         onContextMenu={(e) => e.preventDefault()}
-        className="absolute inset-0 h-full w-full object-cover"
         style={{
-          // Cover the entire screen including safe areas
-          minHeight: '100vh',
-          minWidth: '100vw',
-          // iOS-specific: fill entire screen
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          // Use the larger dimension so the video always covers the viewport
+          minWidth: dims.h > dims.w ? '100dvh' : '100dvw',
+          minHeight: dims.h > dims.w ? '100dvw' : '100dvh',
+          transform: 'translate(-50%, -50%)',
           objectFit: 'cover',
-          // Prevent iOS from stretching
-          aspectRatio: 'auto',
         }}
       />
 
-      {/* Black bars cover for letterboxing if needed */}
+      {/* Fade overlay */}
       <div
         className={`absolute inset-0 bg-black transition-opacity duration-600 ${
           phase === 'FADE_VIDEO' || phase === 'TITLE' || phase === 'FADE_TITLE'
@@ -136,19 +165,18 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
         }`}
       />
 
-      {/* TECHAFLON title layer */}
+      {/* TECHAFLON title */}
       <div
-        className={`absolute inset-0 flex items-center justify-center px-4 transition-opacity duration-800 ${
-          phase === 'TITLE'
-            ? 'opacity-100'
-            : 'pointer-events-none opacity-0'
+        className={`absolute inset-0 flex items-center justify-center px-6 transition-opacity duration-800 ${
+          phase === 'TITLE' ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
       >
         <div className="text-center">
           <h1
             className="font-display font-bold tracking-tight text-foreground"
             style={{
-              fontSize: 'clamp(3rem, 12vw, 10rem)',
+              fontSize: titleSize,
+              lineHeight: 1.05,
               textShadow:
                 '0 0 20px rgba(123,203,127,0.5), 0 0 60px rgba(79,143,90,0.35), 0 0 120px rgba(79,143,90,0.15)',
               animation: 'title-breathe 2s ease-in-out infinite',
@@ -157,9 +185,10 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
             TECHAFLON
           </h1>
           <p
-            className="mt-4 font-display font-bold tracking-[0.25em] text-primary/70"
+            className="mt-3 font-display font-bold text-primary/70 sm:mt-4"
             style={{
-              fontSize: 'clamp(0.7rem, 3vw, 1.125rem)',
+              fontSize: subtitleSize,
+              letterSpacing: subtitleSpacing,
               textShadow: '0 0 12px rgba(123,203,127,0.3)',
             }}
           >
@@ -168,7 +197,7 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
         </div>
       </div>
 
-      {/* Global fade overlay for final transition */}
+      {/* Final black fade */}
       <div
         className={`absolute inset-0 bg-black transition-opacity duration-800 ${
           phase === 'FADE_TITLE' ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -180,7 +209,6 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
           0%, 100% { filter: brightness(1); }
           50% { filter: brightness(1.15); }
         }
-        /* Lock body scroll during intro */
         html, body {
           overflow: hidden !important;
           position: fixed !important;
@@ -188,12 +216,6 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
           height: 100% !important;
           touch-action: none !important;
           -webkit-overflow-scrolling: auto !important;
-        }
-        /* Hide address bar on mobile by extending to viewport */
-        @supports (height: 100dvh) {
-          .fixed.inset-0.z-50.bg-black {
-            height: 100dvh;
-          }
         }
       `}</style>
     </div>
