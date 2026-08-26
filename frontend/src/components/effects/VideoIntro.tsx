@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 
 const VIDEO_SRC = '/doom.mp4'
+const STORAGE_KEY = 'techaflon-intro-seen'
 
 /**
  * Intro phases:
@@ -27,7 +28,7 @@ function getViewportWidth() {
 export function VideoIntro({ onComplete }: VideoIntroProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [phase, setPhase] = useState<Phase>('VIDEO')
+  const [phase, setPhase] = useState<Phase>(showVideo ? 'VIDEO' : 'TITLE')
   const [dims, setDims] = useState({ w: 0, h: 0 })
   const completedRef = useRef(false)
 
@@ -67,8 +68,18 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
     }
   }, [onComplete])
 
-  // On mount: request fullscreen + play video
+  // On mount: request fullscreen + play video (only if showing video)
   useEffect(() => {
+    if (!showVideo) {
+      // Return visit — show title directly, then fade out
+      advance('FADE_TITLE', 2000)
+      setTimeout(() => {
+        if (completedRef.current) return
+        completedRef.current = true
+        onComplete()
+      }, 2800)
+      return
+    }
     const timer = setTimeout(() => {
       if (containerRef.current) {
         goFullscreen(containerRef.current)
@@ -76,7 +87,7 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
       videoRef.current?.play().catch(() => {})
     }, 100)
     return () => clearTimeout(timer)
-  }, [goFullscreen])
+  }, [goFullscreen, showVideo, onComplete])
 
   function advance(next: Phase, delay: number) {
     setTimeout(() => setPhase(next), delay)
@@ -98,6 +109,7 @@ export function VideoIntro({ onComplete }: VideoIntroProps) {
     setTimeout(() => {
       if (completedRef.current) return
       completedRef.current = true
+      localStorage.setItem(STORAGE_KEY, '1')
       onComplete()
     }, 3400)
   }
