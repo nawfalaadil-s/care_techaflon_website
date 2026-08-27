@@ -93,6 +93,21 @@ export function VideoIntro({ showVideo, onComplete }: VideoIntroProps) {
     return () => clearTimeout(timer)
   }, [goFullscreen, showVideo, onComplete])
 
+  // Skip the intro entirely — exit fullscreen, mark seen, finish.
+  function handleSkip() {
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {})
+      } else if ((document as any).webkitFullscreenElement) {
+        ;(document as any).webkitExitFullscreen?.()
+      }
+    } catch {}
+    if (completedRef.current) return
+    completedRef.current = true
+    localStorage.setItem(STORAGE_KEY, '1')
+    onComplete()
+  }
+
   function handleVideoEnd() {
     if (phase !== 'VIDEO') return
     try {
@@ -183,6 +198,29 @@ export function VideoIntro({ showVideo, onComplete }: VideoIntroProps) {
             : 'opacity-0'
         }`}
       />
+
+      {/* Skip intro button — visible while the video plays or title shows */}
+      <div
+        className={`absolute right-4 top-4 z-20 sm:right-6 sm:top-6 ${
+          showVideo && (phase === 'VIDEO' || phase === 'TITLE')
+            ? 'opacity-100'
+            : 'pointer-events-none opacity-0'
+        }`}
+        style={{ transition: 'opacity 300ms ease' }}
+      >
+        <button
+          type="button"
+          onClick={handleSkip}
+          onTouchStart={(e) => {
+            e.stopPropagation()
+            handleSkip()
+          }}
+          className="cursor-pointer rounded-full border border-emerald-500/40 bg-black/60 px-4 py-2 font-display text-xs font-bold uppercase tracking-[0.2em] text-emerald-300 backdrop-blur-sm transition-colors hover:bg-emerald-500/20 hover:text-emerald-100"
+          style={{ textTransform: 'uppercase' }}
+        >
+          Skip &nbsp;⏭
+        </button>
+      </div>
 
       {/* TECHAFLON title */}
       <div
