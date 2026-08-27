@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     # (api.brevo.com:443). Key from dashboard: SMTP & API -> API keys.
     BREVO_API_KEY: str = ""
 
+    # Transport 2b: Mailjet transactional email over HTTPS API
+    # (api.mailjet.com:443, v3.1/send). Key pair from dashboard:
+    # Account -> Profile -> API Keys (Master API Key + Secret Key).
+    # Over HTTPS 443 so it keeps working on hosts that block SMTP
+    # (e.g. Render free tier). Sender must be validated in Mailjet.
+    MAILJET_API_KEY: str = ""
+    MAILJET_SECRET_KEY: str = ""
+
     # Transport 3: generic SMTP (Gmail: smtp.gmail.com, port 587, STARTTLS,
     # username = full Gmail address, password = 16-char App Password from
     # https://myaccount.google.com/apppasswords).
