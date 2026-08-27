@@ -735,3 +735,55 @@ def get_message(db: "Session", message_id: str) -> EmailMessage:
     if message is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Email not found.")
     return message
+
+
+# ---------------------------------------------------------------------------
+# Certificate / transport introspection
+# ---------------------------------------------------------------------------
+
+
+def _configured_transport() -> str | None:
+    """Return the first configured provider name, else ``None`` (log mode)."""
+    probes = (
+        ("gmail", gmail.gmail_configured),
+        ("brevo", brevo.brevo_configured),
+        ("mailjet", mailjet.mailjet_configured),
+        ("smtp", smtp.smtp_configured),
+    )
+    for name, probe in probes:
+        if probe():
+            return name
+    return None
+
+
+def email_transport_status() -> dict[str, object]:
+    """Admin-facing report of how outbound mail will behave right now.
+
+    ``mode`` is either ``"delivering"`` (a provider is configured) or
+    ``"log"`` (no credentials — messages persist as ``logged`` but never
+    leave the server). ``enabled`` mirrors ``EMAIL_ENABLED``.
+    """
+    if not settings.EMAIL_ENABLED:
+        return {"enabled": False, "transport": None, "mode": "log"}
+    transport = _configured_transport()
+    if transport is None:
+        return {"enabled": True, "transport": None, "mode": "log"}
+    return {"enabled": True, "transport": transport, "mode": "delivering"}
+
+
+def render_certificate_preview(
+    name: str, team_name: str, team_id: str, filename: str
+) -> str:
+    """Render the personalized award HTML for an admin preview.
+
+    Mirrors exactly what a participant receives (the ``certificate_award``
+    template) so organisers can confirm the design before broadcasting.
+    """
+    return _html_certificate_award(
+        {
+            "name": name,
+            "team_name": team_name,
+            "team_id": team_id,
+            "filename": filename,
+        }
+    )

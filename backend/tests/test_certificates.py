@@ -262,3 +262,88 @@ def test_leader_can_login_with_provisioned_password() -> None:
         json={"email": team["leader_email"], "password": DEMO_PASSWORD},
     )
     assert login.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Leader-facing certificate access (/certificates/mine)
+# ---------------------------------------------------------------------------
+
+
+def _leader_headers(team_email: str) -> dict:
+    login = client.post(
+        "/api/auth/login", json={"email": team_email, "password": DEMO_PASSWORD}
+    )
+    assert login.status_code == 200, login.text
+    return {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+
+def test_my_certificate_requires_authentication() -> None:
+    assert client.get("/api/certificates/mine").status_code == 401
+    assert client.get("/api/certificates/mine/download").status_code == 401
+
+
+def test_my_certificate_returns_404_without_team() -> None:
+    """An authenticated account that owns no team gets a clear 404."""
+    admin = _make_admin()
+    response = client.get("/api/certificates/mine", headers=admin)
+    assert response.status_code == 404
+    assert "No team found" in response.json()["detail"]
+
+
+def test_leader_can_download_certificate_after_approval() -> None:
+    admin = _make_admin()
+    cert = _upload_certificate(admin)
+    team = _create_team("CertLeaders")
+    leader = _leader_headers(team["leader_email"])
+
+    # Pending team: visible but not downloadable yet.
+    mine = client.get("/api/certificates/mine", headers=leader)
+    assert mine.status_code == 200, mine.text
+    payload = mine.json()
+    assert payload["team"]["team_id"] == team["team_id"]
+    assert payload["available"] is False
+    assert payload["reason"] == "team_not_approved"
+    assert payload["certificate"]["id"] == cert["id"]
+    assert payload["preview_html"] is None
+
+    blocked = client.get("/api/certificates/mine/download", headers=leader)
+    assert blocked.status_code == 403
+    assert "not been approved" in blocked.json()["detail"]
+
+    # After approval: entitlement unlocks with personalized view + file bytes.
+    _approve(admin, team["id"])
+
+    mine = client.get("/api/certificates/mine", headers=leader)
+    assert mine.status_code == 200
+    payload = mine.json()
+    assert payload["available"] is True
+    assert payload["reason"] is None
+    assert payload["download_filename"].startswith(f"{team['team_id']}-certificate")
+    assert team["team_id"] in payload["preview_html"]
+    assert team["leader_name"] in payload["preview_html"]
+
+    download = client.get("/api/certificates/mine/download", headers=leader)
+    assert download.status_code == 200
+    assert download.content == PDF_BYTES
+    assert download.headers["content-type"] == "application/pdf"
+    assert f"{team['team_id']}-certificate.pdf" in download.headers[
+        "content-disposition"
+    ]
+
+
+def test_leader_download_404_when_no_active_certificate() -> None:
+    admin = _make_admin()
+    team = _create_team("LateCert")
+    _approve(admin, team["id"])
+    assert client.delete("/api/certificates/current", headers=admin).status_code == 204
+
+    leader = _leader_headers(team["leader_email"])
+    mine = client.get("/api/certificates/mine", headers=leader)
+    assert mine.status_code == 200
+    payload = mine.json()
+    assert payload["available"] is False
+    assert payload["reason"] == "no_active_certificate"
+
+    download = client.get("/api/certificates/mine/download", headers=leader)
+    assert download.status_code == 404
+    assert "No certificate is available" in download.json()["detail"]

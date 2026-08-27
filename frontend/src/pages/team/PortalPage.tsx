@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { normalizeApiError } from '@/api/client'
+import { certificatesApi, type MyCertificate } from '@/api/certificateApi'
 import { teamApi, type TeamRecord } from '@/api/teamApi'
 import { Badge } from '@/components/ui/badge'
 import type { BadgeVariant } from '@/components/ui/badge'
@@ -65,9 +66,27 @@ export default function PortalPage() {
     }
   }, [])
 
+  // Mount-time fetch as a promise chain — avoids synchronous setState inside
+  // the effect (oxlint set-state-in-effect). `refresh` stays for manual retry.
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    let cancelled = false
+    teamApi
+      .getMine()
+      .then((data) => {
+        if (!cancelled) {
+          setTeam(data)
+          setState({ kind: 'ready' })
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setState({ kind: 'error', message: normalizeApiError(error).message })
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   function onSaved(updated: TeamRecord) {
     setTeam(updated)
@@ -226,8 +245,152 @@ function TeamCard({
         </div>
 
         <SubmissionPanel teamId={team.id} />
+
+        <CertificateSection status={team.status} />
       </CardContent>
     </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Participation certificate (leader downloads once team is approved)
+// ---------------------------------------------------------------------------
+
+type CertState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ready'; data: MyCertificate }
+  | { kind: 'error'; message: string }
+
+function openCertificateTab(html: string): void {
+  const blob = new Blob([html], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const opened = window.open(url, '_blank', 'noopener')
+  // If the browser blocked the popup keep the URL alive in this tab.
+  if (!opened) {
+    window.location.href = url
+    return
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+function CertificateSection({ status }: { status: string }) {
+  const [state, setState] = useState<CertState>(
+    status === 'approved' ? { kind: 'loading' } : { kind: 'idle' },
+  )
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (status !== 'approved') return
+    let cancelled = false
+    void certificatesApi
+      .my()
+      .then((data) => {
+        if (!cancelled) setState({ kind: 'ready', data })
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setState({ kind: 'error', message: normalizeApiError(error).message })
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [status])
+
+  async function handleDownload(fallbackName?: string) {
+    setDownloading(true)
+    setDownloadError(null)
+    try {
+      await certificatesApi.downloadMine(fallbackName)
+    } catch (error) {
+      setDownloadError(normalizeApiError(error).message)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  if (status !== 'approved') {
+    return (
+      <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+        🏅 <span className="font-medium">Participation certificate</span> —
+        unlocks here as soon as organizers approve your team.
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/40 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-semibold">🏅 Participation certificate</h4>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Same award file every participant of your team receives by email.
+          </p>
+        </div>
+
+        {(state.kind === 'loading' || state.kind === 'idle') && (
+          <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <Spinner size="sm" /> Checking availability…
+          </span>
+        )}
+
+        {state.kind === 'ready' && state.data.available && (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={downloading}
+              onClick={() => void handleDownload(state.data.download_filename ?? undefined)}
+            >
+              {downloading ? (
+                <>
+                  <Spinner size="sm" /> Downloading…
+                </>
+              ) : (
+                'Download certificate'
+              )}
+            </Button>
+            {state.data.preview_html && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openCertificateTab(state.data.preview_html ?? '')}
+              >
+                View & print
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {state.kind === 'ready' && !state.data.available && (
+        <p className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
+          {state.data.reason === 'no_active_certificate'
+            ? 'Organizers haven’t published the final certificate design yet — check back soon.'
+            : 'Your certificate becomes available after approval.'}
+        </p>
+      )}
+
+      {state.kind === 'error' && (
+        <p
+          role="alert"
+          className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive"
+        >
+          Couldn’t load certificate info. {state.message}
+        </p>
+      )}
+
+      {downloadError && (
+        <p
+          role="alert"
+          className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive"
+        >
+          Download failed. {downloadError}
+        </p>
+      )}
+    </div>
   )
 }
 
