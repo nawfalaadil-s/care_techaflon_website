@@ -40,7 +40,8 @@ export default function AdminSettingsPage() {
   }, [])
 
   useEffect(() => {
-    void load()
+    const id = window.setTimeout(load, 0)
+    return () => window.clearTimeout(id)
   }, [load])
 
   function updateField<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) {

@@ -75,6 +75,10 @@ def test_overview_rbac_and_shape() -> None:
     leader_headers = _make_leader()
     assert client.get("/api/stats/overview", headers=leader_headers).status_code == 403
 
+    # Self-sufficient on a fresh database: register one team so the overview
+    # has at least one row to count (the suite shares one disposable DB).
+    _register_team()
+
     admin_headers = _make_admin()
     response = client.get("/api/stats/overview", headers=admin_headers)
     assert response.status_code == 200, response.text

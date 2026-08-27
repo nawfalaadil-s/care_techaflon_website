@@ -347,3 +347,87 @@ def test_leader_download_404_when_no_active_certificate() -> None:
     download = client.get("/api/certificates/mine/download", headers=leader)
     assert download.status_code == 404
     assert "No certificate is available" in download.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# Reporting endpoints (regression: _metrics aggregation must never be None —
+# a truncated merge once left these three endpoints returning HTTP 500).
+# ---------------------------------------------------------------------------
+
+
+def test_reporting_endpoints_require_admin() -> None:
+    assert client.get("/api/certificates/delivery-summary").status_code == 401
+    assert client.get("/api/certificates/history").status_code == 401
+    assert client.get("/api/certificates/teams").status_code == 401
+    assert client.get("/api/certificates/email-status").status_code == 401
+
+
+def test_delivery_summary_tracks_coverage() -> None:
+    admin = _make_admin()
+    cert = _upload_certificate(admin)
+    team = _create_team("CertCoverage")
+    _approve(admin, team["id"])
+
+    response = client.get("/api/certificates/delivery-summary", headers=admin)
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["certificate_id"] == cert["id"]
+    # The suite shares a database, so other approved teams add recipients.
+    assert payload["planned_recipients"] >= 3
+    assert payload["delivered_recipients"] >= 3
+    assert payload["delivered_percent"] > 0
+    assert payload["logged"] >= 3
+    assert payload["failed"] == 0
+
+
+def test_certificate_history_reports_metrics() -> None:
+    admin = _make_admin()
+    cert = _upload_certificate(admin)
+    team = _create_team("CertHistory")
+    _approve(admin, team["id"])
+
+    response = client.get("/api/certificates/history", headers=admin)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total"] >= 1
+    match = [item for item in body["items"] if item["id"] == cert["id"]]
+    assert match, "uploaded certificate missing from history"
+    item = match[0]
+    assert item["active"] is True
+    # Leader + 2 members, exactly one "logged" mail each for this certificate.
+    assert item["mail_logged"] >= 3
+    assert item["mail_sent"] == 0
+    assert item["recipients_sent"] >= 3
+    assert item["recipients_failed"] == 0
+
+
+def test_teams_endpoint_reports_per_recipient_status() -> None:
+    admin = _make_admin()
+    _upload_certificate(admin)
+    team = _create_team("CertTeamsStatus")
+    _approve(admin, team["id"])
+
+    response = client.get("/api/certificates/teams", headers=admin)
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    match = [t for t in payload["teams"] if t["team_id"] == team["team_id"]]
+    assert match, "approved team missing from /certificates/teams"
+    entry = match[0]
+    assert entry["recipient_total"] == 3
+    assert entry["delivered"] == 3
+    assert all(r["status"] in ("sent", "logged") for r in entry["recipients"])
+
+
+def test_email_status_reflects_log_mode_and_active_cert() -> None:
+    admin = _make_admin()
+
+    # The suite forces every transport off -> log mode.
+    assert client.delete("/api/certificates/current", headers=admin).status_code == 204
+    status = client.get("/api/certificates/email-status", headers=admin).json()
+    assert status["email"]["mode"] == "log"
+    assert status["email"]["transport"] is None
+    assert status["certificate_active"] is False
+
+    _upload_certificate(admin)
+    status = client.get("/api/certificates/email-status", headers=admin).json()
+    assert status["certificate_active"] is True

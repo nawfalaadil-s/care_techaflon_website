@@ -42,7 +42,8 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    void load()
+    const id = window.setTimeout(load, 0)
+    return () => window.clearTimeout(id)
   }, [load])
 
   if (state.kind === 'loading') {

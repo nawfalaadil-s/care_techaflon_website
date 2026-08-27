@@ -282,7 +282,10 @@ def test_admin_log_rbac_and_resend() -> None:
     listing = client.get("/api/emails?limit=5", headers=admin)
     assert listing.status_code == 200
     body = listing.json()
-    assert body["total"] <= 5
+    # The suite shares one database, so the outbox may hold many rows; the
+    # contract is that `limit` caps the page while `total` counts everything.
+    assert len(body["items"]) <= 5
+    assert body["total"] >= len(body["items"])
     assert all(m["template"] in (
         "registration_confirmation",
         "registration_decision",

@@ -42,7 +42,8 @@ export default function AdminVenuePage() {
   }, [])
 
   useEffect(() => {
-    void load()
+    const id = window.setTimeout(load, 0)
+    return () => window.clearTimeout(id)
   }, [load])
 
   const filtered = useMemo(() => {
@@ -367,11 +368,15 @@ function VenueRow({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-sync the editor fields when the team record changes — adjusted
+  // during render (React pattern) instead of an effect.
+  const [syncedTeam, setSyncedTeam] = useState(team)
+  if (syncedTeam !== team) {
+    setSyncedTeam(team)
     setName(team.venue_name)
     setLocation(team.venue_location)
     setError(null)
-  }, [team])
+  }
 
   async function save() {
     if (saving) return

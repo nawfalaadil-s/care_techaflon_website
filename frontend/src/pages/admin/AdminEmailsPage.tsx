@@ -71,7 +71,8 @@ export default function AdminEmailsPage() {
   }, [filter])
 
   useEffect(() => {
-    void load()
+    const id = window.setTimeout(load, 0)
+    return () => window.clearTimeout(id)
   }, [load])
 
   // Auto-refresh every REFRESH_INTERVAL ms

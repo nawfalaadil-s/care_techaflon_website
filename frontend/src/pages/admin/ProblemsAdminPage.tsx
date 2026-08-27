@@ -58,7 +58,8 @@ export default function ProblemsAdminPage() {
   }, [])
 
   useEffect(() => {
-    void load()
+    const id = window.setTimeout(load, 0)
+    return () => window.clearTimeout(id)
   }, [load])
 
   function startCreate() {

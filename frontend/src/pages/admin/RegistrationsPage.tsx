@@ -72,7 +72,8 @@ export default function RegistrationsPage() {
   }, [])
 
   useEffect(() => {
-    void load()
+    const id = window.setTimeout(load, 0)
+    return () => window.clearTimeout(id)
   }, [load])
 
   const filtered = useMemo(() => {
@@ -511,10 +512,17 @@ function ProblemStatementAllocator({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-sync when the team's id or allocation changes — adjusted during
+  // render (React pattern) instead of an effect.
+  const [sync, setSync] = useState({
+    id: team.id,
+    ps: team.problem_statement_id,
+  })
+  if (sync.id !== team.id || sync.ps !== team.problem_statement_id) {
+    setSync({ id: team.id, ps: team.problem_statement_id })
     setPsId(team.problem_statement_id ?? '')
     setError(null)
-  }, [team.id, team.problem_statement_id])
+  }
 
   async function save(nextId: string) {
     if (saving) return
@@ -603,11 +611,23 @@ function VenueEditor({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-sync when the team's venue fields change — adjusted during render
+  // (React pattern) instead of an effect.
+  const [sync, setSync] = useState({
+    id: team.id,
+    name: team.venue_name,
+    location: team.venue_location,
+  })
+  if (
+    sync.id !== team.id ||
+    sync.name !== team.venue_name ||
+    sync.location !== team.venue_location
+  ) {
+    setSync({ id: team.id, name: team.venue_name, location: team.venue_location })
     setName(team.venue_name)
     setLocation(team.venue_location)
     setError(null)
-  }, [team.id, team.venue_name, team.venue_location])
+  }
 
   async function save() {
     if (saving) return

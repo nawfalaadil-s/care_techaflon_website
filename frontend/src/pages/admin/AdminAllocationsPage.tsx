@@ -27,6 +27,7 @@ export default function AdminAllocationsPage() {
   >({ kind: 'loading' })
   const [search, setSearch] = useState('')
   const [onlyUnallocated, setOnlyUnallocated] = useState(false)
+  const [auto, setAuto] = useState<AutoAllocateState | null>(null)
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' })
@@ -46,10 +47,9 @@ export default function AdminAllocationsPage() {
   }, [])
 
   useEffect(() => {
-    void load()
+    const id = window.setTimeout(load, 0)
+    return () => window.clearTimeout(id)
   }, [load])
-
-  const [auto, setAuto] = useState<AutoAllocateState | null>(null)
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -381,10 +381,14 @@ function AllocationRow({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-sync when the team record changes — adjusted during render
+  // (React pattern) instead of an effect.
+  const [syncedTeam, setSyncedTeam] = useState(team)
+  if (syncedTeam !== team) {
+    setSyncedTeam(team)
     setPsId(team.problem_statement_id ?? '')
     setError(null)
-  }, [team])
+  }
 
   async function save(nextId: string) {
     if (saving) return

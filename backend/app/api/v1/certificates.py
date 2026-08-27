@@ -54,6 +54,8 @@ def _meta(certificate: Certificate) -> dict:
         "uploaded_by": certificate.uploaded_by,
         "created_at": certificate.created_at.isoformat(),
     }
+
+
 def _team_recipients(team: Team) -> list[tuple[str, str]]:
     """[(email, name), ...] for a team, deduplicated case-insensitively."""
     recipients: list[tuple[str, str]] = [(team.leader_email, team.leader_name)]
@@ -92,6 +94,16 @@ def _metrics(db: Session, certificate: Certificate) -> dict:
     recipient from failed to delivered).
     """
     latest: dict[str, str] = {}
+    counts = {"sent": 0, "logged": 0, "queued": 0, "failed": 0}
+    for row in _award_rows(db, certificate.id):
+        key = row.to_email.strip().lower()
+        latest[key] = row.status
+        counts[row.status] = counts.get(row.status, 0) + 1
+    delivered = {k for k, v in latest.items() if v in _DELIVERED_STATUSES}
+    failed = {k for k, v in latest.items() if v == "failed"}
+    return {**counts, "delivered_emails": delivered, "failed_emails": failed}
+
+
 @router.post("/upload", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def upload_certificate(
     request: Request,
@@ -154,14 +166,8 @@ def current_certificate(
             detail="No certificate has been uploaded yet.",
         )
     return _meta(certificate)
-    counts = {"sent": 0, "logged": 0, "queued": 0, "failed": 0}
-    for row in _award_rows(db, certificate.id):
-        key = row.to_email.strip().lower()
-        latest[key] = row.status
-        counts[row.status] = counts.get(row.status, 0) + 1
-    delivered = {k for k, v in latest.items() if v in _DELIVERED_STATUSES}
-    failed = {k for k, v in latest.items() if v == "failed"}
-    return {**counts, "delivered_emails": delivered, "failed_emails": failed}
+
+
 def _filename_for(team_id: str, content_type: str) -> str:
     """Build a friendly download name like ``TFLN-2026-007-certificate.pdf``."""
     extension = {
@@ -465,6 +471,8 @@ def delivery_summary(
         "delivered_recipients_list": sorted(delivered),
         "failed_recipients_list": sorted(metrics["failed_emails"]),
     }
+
+
 @router.get("/history", response_model=dict)
 def certificate_history(
     db: Session = Depends(get_db),
@@ -578,6 +586,8 @@ def activate_certificate(
     db.commit()
     db.refresh(certificate)
     return _meta(certificate)
+
+
 @router.get("/teams", response_model=dict)
 def approved_teams_status(
     db: Session = Depends(get_db),

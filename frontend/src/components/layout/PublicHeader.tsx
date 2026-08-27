@@ -28,10 +28,13 @@ export function PublicHeader() {
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
 
-  // Close the drawer whenever the route changes.
-  useEffect(() => {
+  // Close the drawer whenever the route changes. Adjusted during render
+  // (React's "derive state from props" pattern) — no effect, no extra commit.
+  const [prevPath, setPrevPath] = useState(location.pathname)
+  if (prevPath !== location.pathname) {
+    setPrevPath(location.pathname)
     setMenuOpen(false)
-  }, [location.pathname])
+  }
 
   // Close on Escape for keyboard users.
   useEffect(() => {

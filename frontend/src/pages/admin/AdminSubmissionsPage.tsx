@@ -40,7 +40,8 @@ export default function AdminSubmissionsPage() {
   }, [])
 
   useEffect(() => {
-    void load()
+    const id = window.setTimeout(load, 0)
+    return () => window.clearTimeout(id)
   }, [load])
 
   const filtered = useMemo(() => {
