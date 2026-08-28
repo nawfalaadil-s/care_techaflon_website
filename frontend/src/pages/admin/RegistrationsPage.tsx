@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { Download } from 'lucide-react'
+
 import { normalizeApiError } from '@/api/client'
 import { problemApi, type ProblemStatement } from '@/api/problemApi'
 import { statsApi, type AdminSubmissionRow } from '@/api/statsApi'
@@ -51,6 +53,9 @@ export default function RegistrationsPage() {
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
+
+  // CSV export
+  const [exporting, setExporting] = useState<'teams' | 'registration' | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -210,6 +215,28 @@ export default function RegistrationsPage() {
     }
   }
 
+  async function handleExportCsv(kind: 'teams' | 'registration') {
+    if (exporting) return
+    setExporting(kind)
+    setError(null)
+    try {
+      const filters = {
+        status: statusFilter,
+        theme: themeFilter,
+        q: search,
+      }
+      if (kind === 'registration') {
+        await teamApi.exportRegistrationCsv(filters)
+      } else {
+        await teamApi.exportCsv(filters)
+      }
+    } catch (err) {
+      setError(normalizeApiError(err).message)
+    } finally {
+      setExporting(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground">
@@ -257,6 +284,28 @@ export default function RegistrationsPage() {
             </option>
           ))}
         </Select>
+        <Button
+          variant="outline"
+          disabled={exporting !== null}
+          onClick={() => void handleExportCsv('teams')}
+          className="sm:w-auto"
+        >
+          {exporting === 'teams' ? <Spinner size="sm" /> : <Download className="h-4 w-4" />}
+          {exporting === 'teams' ? 'Exporting…' : 'Export'}
+        </Button>
+        <Button
+          variant="outline"
+          disabled={exporting !== null}
+          onClick={() => void handleExportCsv('registration')}
+          className="sm:w-auto"
+        >
+          {exporting === 'registration' ? (
+            <Spinner size="sm" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          {exporting === 'registration' ? 'Exporting…' : 'Registration CSV'}
+        </Button>
       </div>
 
       {error && (

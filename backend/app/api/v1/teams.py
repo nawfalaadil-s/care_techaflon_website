@@ -1,4 +1,9 @@
+import csv
+import io
+from datetime import datetime
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_admin, get_current_user
@@ -127,6 +132,234 @@ def bulk_delete_endpoint(
     """Delete multiple teams at once (admin only)."""
     deleted_count, errors = bulk_delete_teams(db, payload.team_ids)
     return BulkOperationResult(deleted=deleted_count, errors=errors)
+
+
+@router.get("/export/csv")
+def export_teams_csv(
+    department: str | None = None,
+    theme: str | None = None,
+    status: str | None = None,
+    q: str | None = None,
+    current: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Export teams as a CSV file (admin only). Respects the same filters
+    (department / theme / status / free-text ``q``) used by the admin UI."""
+    teams = list_teams(db, department=department, theme=theme, status=status)
+
+    # Mirror the RegistrationsPage free-text search (team, id, leader, ...).
+    if q:
+        needle = q.strip().lower()
+        teams = [
+            t
+            for t in teams
+            if needle in t.team_name.lower()
+            or needle in t.team_id.lower()
+            or needle in t.leader_name.lower()
+            or needle in t.leader_email.lower()
+            or needle in t.leader_register_number.lower()
+        ]
+
+    # Pull the 1:1 submissions for every team in one query.
+    from sqlalchemy import select as _select
+
+    from app.models.submission import Submission
+
+    subs: dict[str, Submission] = {}
+    if teams:
+        rows = db.scalars(_select(Submission)).all()
+        subs = {s.registration_id: s for s in rows}
+
+    buf = io.StringIO()
+    buf.write("\ufeff")  # UTF-8 BOM so Excel opens non-ASCII correctly.
+    writer = csv.writer(buf)
+
+    header = [
+        "Team ID",
+        "Team Name",
+        "Theme",
+        "Status",
+        "Registered At",
+        "Approved At",
+        "Leader Name",
+        "Leader Email",
+        "Leader Phone",
+        "Leader Register Number",
+        "Leader Department",
+        "Leader Year",
+        "Leader Section",
+        "Members",
+        "Member Count",
+        "Problem Statement",
+        "PS Allocated At",
+        "Venue Name",
+        "Venue Location",
+        "Project Name",
+        "Project Description",
+        "Repository URL",
+        "Demo URL",
+        "Submitted At",
+    ]
+    writer.writerow(header)
+
+    def _fmt_dt(dt: datetime | None) -> str:
+        if dt is None:
+            return ""
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    for t in teams:
+        members = t.members or []
+        member_parts: list[str] = []
+        for m in members:
+            if isinstance(m, dict):
+                name = m.get("name", "")
+                reg = m.get("register_number", "")
+                email = m.get("email", "")
+                dept = m.get("department", "")
+                year = m.get("year", "")
+                section = m.get("section", "")
+                member_parts.append(
+                    f"{name} ({reg} | {email} | {dept} | {year} | {section})"
+                )
+
+        ps_title = resolve_ps_title(db, t.problem_statement_id) or ""
+
+        sub = subs.get(t.id)
+        project_name = sub.project_name if sub else ""
+        description = sub.description if sub else ""
+        repo_url = sub.repo_url if sub else ""
+        demo_url = sub.demo_url if sub else ""
+        submitted_at = _fmt_dt(sub.updated_at) if sub else ""
+
+        writer.writerow([
+            t.team_id,
+            t.team_name,
+            t.theme,
+            t.status,
+            _fmt_dt(t.registered_at),
+            _fmt_dt(t.approved_at),
+            t.leader_name,
+            t.leader_email,
+            t.leader_phone,
+            t.leader_register_number,
+            t.leader_department,
+            t.leader_year,
+            t.leader_section,
+            "; ".join(member_parts),
+            len(members),
+            ps_title,
+            _fmt_dt(t.ps_allocated_at),
+            t.venue_name,
+            t.venue_location,
+            project_name,
+            description,
+            repo_url,
+            demo_url,
+            submitted_at,
+        ])
+
+    buf.seek(0)
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    filename = f"teams_export_{timestamp}.csv"
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export/registration-csv")
+def export_registration_csv(
+    department: str | None = None,
+    theme: str | None = None,
+    status: str | None = None,
+    q: str | None = None,
+    current: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Export registration summary as a CSV — one row PER participant
+    (leader + members) with Team ID, Team Name, member details and Theme.
+
+    The leader is the first participant; their role is marked 'Leader'.
+    """
+    teams = list_teams(db, department=department, theme=theme, status=status)
+
+    if q:
+        needle = q.strip().lower()
+        teams = [
+            t
+            for t in teams
+            if needle in t.team_name.lower()
+            or needle in t.team_id.lower()
+            or needle in t.leader_name.lower()
+            or needle in t.leader_email.lower()
+            or needle in t.leader_register_number.lower()
+        ]
+
+    buf = io.StringIO()
+    buf.write("\ufeff")  # UTF-8 BOM for Excel.
+    writer = csv.writer(buf)
+
+    header = [
+        "Team ID",
+        "Team Name",
+        "Theme",
+        "Role",
+        "Member Name",
+        "Register Number",
+        "Email",
+        "Department",
+        "Year",
+        "Section",
+        "Status",
+    ]
+    writer.writerow(header)
+
+    for t in teams:
+        theme_label = t.theme
+
+        # Leader is always participant #1.
+        writer.writerow([
+            t.team_id,
+            t.team_name,
+            theme_label,
+            "Leader",
+            t.leader_name,
+            t.leader_register_number,
+            t.leader_email,
+            t.leader_department,
+            t.leader_year,
+            t.leader_section,
+            t.status,
+        ])
+
+        for m in t.members or []:
+            if not isinstance(m, dict):
+                continue
+            writer.writerow([
+                t.team_id,
+                t.team_name,
+                theme_label,
+                "Member",
+                m.get("name", ""),
+                m.get("register_number", ""),
+                m.get("email", ""),
+                m.get("department", ""),
+                m.get("year", ""),
+                m.get("section", ""),
+                t.status,
+            ])
+
+    buf.seek(0)
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    filename = f"registrations_{timestamp}.csv"
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{team_id}", response_model=TeamResponse)

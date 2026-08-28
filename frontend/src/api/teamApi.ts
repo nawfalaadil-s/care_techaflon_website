@@ -161,4 +161,62 @@ export const teamApi = {
     }>('/teams/bulk-delete', { team_ids: teamIds })
     return data
   },
+
+  /** Export teams as a CSV file (admin only). Triggers a browser download.
+   *  Optional filters mirror the admin registrations page. */
+  async exportCsv(filters?: {
+    status?: string
+    theme?: string
+    q?: string
+  }): Promise<void> {
+    const params = new URLSearchParams()
+    if (filters?.status && filters.status !== 'all') params.set('status', filters.status)
+    if (filters?.theme && filters.theme !== 'all') params.set('theme', filters.theme)
+    if (filters?.q?.trim()) params.set('q', filters.q.trim())
+    const query = params.toString() ? `?${params.toString()}` : ''
+
+    const response = await apiClient.get(`/teams/export/csv${query}`, {
+      responseType: 'blob',
+    })
+    const blob = new Blob([response.data as BlobPart], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const disposition = response.headers['content-disposition'] as string | undefined
+    const match = disposition?.match(/filename="?([^"]+)"?/)
+    link.download = match?.[1] ?? `teams_export_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
+
+  /** Export registration summary as a CSV — one row per participant
+   *  (leader + members). Optional filters mirror the admin page. */
+  async exportRegistrationCsv(filters?: {
+    status?: string
+    theme?: string
+    q?: string
+  }): Promise<void> {
+    const params = new URLSearchParams()
+    if (filters?.status && filters.status !== 'all') params.set('status', filters.status)
+    if (filters?.theme && filters.theme !== 'all') params.set('theme', filters.theme)
+    if (filters?.q?.trim()) params.set('q', filters.q.trim())
+    const query = params.toString() ? `?${params.toString()}` : ''
+
+    const response = await apiClient.get(`/teams/export/registration-csv${query}`, {
+      responseType: 'blob',
+    })
+    const blob = new Blob([response.data as BlobPart], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const disposition = response.headers['content-disposition'] as string | undefined
+    const match = disposition?.match(/filename="?([^"]+)"?/)
+    link.download = match?.[1] ?? `registrations_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
 }
