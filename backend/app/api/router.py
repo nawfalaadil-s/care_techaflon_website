@@ -11,6 +11,7 @@ from app.api.v1 import (
     stats,
     submissions,
     teams,
+    venues,
 )
 
 api_router = APIRouter()
@@ -25,3 +26,4 @@ api_router.include_router(stats.router)
 api_router.include_router(emails.router)
 api_router.include_router(certificates.router)
 api_router.include_router(settings.router)
+api_router.include_router(venues.router)

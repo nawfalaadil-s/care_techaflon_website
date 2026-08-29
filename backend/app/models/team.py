@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
 
 from app.database.base import Base
@@ -100,4 +100,9 @@ class Team(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    # Relationships
+    seat: Mapped[Optional["TeamSeat"]] = relationship(
+        "TeamSeat", back_populates="team", uselist=False
     )
