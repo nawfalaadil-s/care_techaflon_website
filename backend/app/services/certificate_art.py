@@ -31,8 +31,13 @@ except ImportError:  # pragma: no cover
 
 # Share of the canvas height reserved for the name line; keeps the name
 # readable on both wide landscape A4 designs and square social graphics.
-_NAME_HEIGHT_RATIO = 0.14
-_SUBTITLE_HEIGHT_RATIO = 0.05
+# Tuned against the official TechAFlon A4-landscape template: the blank name
+# zone sits between ~57% ("...certify that") and ~66% (signature underline),
+# with a paragraph block starting at ~72%.
+_NAME_HEIGHT_RATIO = 0.075
+_SUBTITLE_HEIGHT_RATIO = 0.03
+_NAME_CENTER_RATIO = 0.615
+_SUBTITLE_GAP_RATIO = 0.012
 
 _FONT_CANDIDATES = (
     # Windows
@@ -122,33 +127,42 @@ def compose_certificate_image(
     width, height = source.size
     base = source.convert("RGBA")
 
-    # Semi-transparent scrim behind the text guarantees legibility even when
-    # organizers pick a busy background design.
-    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
-    scrim = Image.new("RGBA", base.size, (255, 255, 255, 96))
-    y_center = int(height * 0.60)
-    band_height = int(height * (_NAME_HEIGHT_RATIO * 2 + _SUBTITLE_HEIGHT_RATIO * 4))
-    overlay.paste(scrim, (0, y_center - band_height // 2))
-
-    composed = Image.alpha_composite(base, overlay)
-    draw = ImageDraw.Draw(composed)
-
+    # Measure the text layout first so the scrim band matches exactly the
+    # region the name + subtitle will occupy.
+    measure = ImageDraw.Draw(base)
     name_font_size = max(18, int(height * _NAME_HEIGHT_RATIO))
     name_font = _load_font(name_font_size)
-
     max_text_width = int(width * 0.86)
-    lines = _wrap_name(draw, name, max_text_width, name_font)
-    ink = (16, 32, 20, 255)
+    lines = _wrap_name(measure, name, max_text_width, name_font)
 
     line_height = name_font_size + max(6, name_font_size // 5)
     block_height = line_height * len(lines)
-    y = y_center - block_height // 2
+    y_center = int(height * _NAME_CENTER_RATIO)
+    name_top = y_center - block_height // 2
+
+    subtitle_font = _load_font(max(11, int(height * _SUBTITLE_HEIGHT_RATIO)))
+    subtitle_top = name_top + block_height + int(height * _SUBTITLE_GAP_RATIO)
+    subtitle_bottom = subtitle_top + int(height * _SUBTITLE_HEIGHT_RATIO)
+
+    # Semi-transparent scrim band behind the text guarantees legibility even
+    # when organizers pick a busy background design. Paste a *cropped* band —
+    # pasting a full-canvas image at an offset would wash out everything below.
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    band_top = max(0, name_top - int(height * 0.015))
+    band_bottom = min(height, subtitle_bottom + int(height * 0.01))
+    band = Image.new("RGBA", (width, max(1, band_bottom - band_top)), (255, 255, 255, 96))
+    overlay.paste(band, (0, band_top))
+
+    composed = Image.alpha_composite(base, overlay)
+    draw = ImageDraw.Draw(composed)
+    ink = (16, 32, 20, 255)
+
+    y = name_top
     for line in lines:
         _centered(draw, y, line, name_font, width, ink)
         y += line_height
 
-    subtitle_font = _load_font(max(11, int(height * _SUBTITLE_HEIGHT_RATIO)))
-    _centered(draw, y + int(_SUBTITLE_HEIGHT_RATIO * height), f"{subtitle} · {team_id}", subtitle_font, width, ink)
+    _centered(draw, subtitle_top, f"{subtitle} · {team_id}", subtitle_font, width, ink)
 
     output = BytesIO()
     composed.convert("RGB").save(output, format="PNG", optimize=True)
