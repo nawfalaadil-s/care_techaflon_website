@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import re
 from io import BytesIO
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 
@@ -29,17 +30,23 @@ try:  # pragma: no cover - exercised implicitly by importorskip tests
 except ImportError:  # pragma: no cover
     PILLOW_AVAILABLE = False
 
-# Share of the canvas height reserved for the name line; keeps the name
-# readable on both wide landscape A4 designs and square social graphics.
-# Tuned against the official TechAFlon A4-landscape template: the blank name
-# zone sits between ~57% ("...certify that") and ~66% (signature underline),
-# with a paragraph block starting at ~72%.
-_NAME_HEIGHT_RATIO = 0.075
-_SUBTITLE_HEIGHT_RATIO = 0.03
+# Rendering style for the official TechAFlon template (organizer spec):
+#   - name in the bundled Anaktoria typeface, green ink
+#   - font size 58pt at A4 width (842pt), scaled proportionally
+#   - positioned on the template's blank name line (~61.5% height)
+#   - no scrim band, no subtitle — the template artwork stays untouched
+_NAME_PT_SIZE = 58
+_A4_LANDSCAPE_WIDTH_PT = 842
 _NAME_CENTER_RATIO = 0.615
-_SUBTITLE_GAP_RATIO = 0.012
+_NAME_CENTER_X_RATIO = 0.47  # template name-line centre, clear of the medal
+_NAME_MAX_WIDTH_RATIO = 0.46  # right edge stops well before the gold medal
+_NAME_INK = (27, 94, 57, 255)  # deep TechAFlon green
+
+_BUNDLED_FONT = Path(__file__).resolve().parent.parent / "assets" / "fonts" / "Anaktoria.ttf"
 
 _FONT_CANDIDATES = (
+    # Bundled event typeface (preferred)
+    str(_BUNDLED_FONT),
     # Windows
     r"C:\Windows\Fonts\arialbd.ttf",
     r"C:\Windows\Fonts\Arial.ttf",
@@ -92,20 +99,27 @@ def _wrap_name(draw: "ImageDraw.ImageDraw", name: str, max_width: int, font) -> 
 
 def _centered(
     draw: "ImageDraw.ImageDraw",
+    center_x: float,
     xy_y: int,
     text: str,
     font,
-    width: int,
     fill,
 ) -> None:
+    """Draw ``text`` horizontally centered on ``center_x`` at top ``xy_y``."""
     left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
-    draw.text(((width - (right - left)) / 2 - left, xy_y - top), text, font=font, fill=fill)
+    draw.text((center_x - (right - left) / 2 - left, xy_y - top), text, font=font, fill=fill)
 
 
 def compose_certificate_image(
     data: bytes, content_type: str, *, name: str, team_id: str, subtitle: str = "TechAFlon"
 ) -> tuple[bytes, str]:
-    """Burn ``name``/``team_id`` into the uploaded template image.
+    """Burn ``name`` into the uploaded template image.
+
+    The name is rendered in the bundled Anaktoria typeface, green ink, at
+    58pt (scaled to the A4 canvas width) on the template's blank name line.
+    No scrim band and no subtitle are drawn — the template artwork is kept
+    exactly as uploaded. ``team_id``/``subtitle`` are accepted for caller
+    compatibility but intentionally not rendered.
 
     Returns ``(png_bytes, "image/png")`` so downstream consumers (downloads,
     email attachments, portal previews) all share one canonical artifact.
@@ -113,6 +127,7 @@ def compose_certificate_image(
     Raises :class:`ValueError` when the bytes are not a decodable image of an
     allowed type — callers translate that into an API error.
     """
+    _ = team_id, subtitle  # not drawn; kept for signature compatibility
     if not PILLOW_AVAILABLE:  # pragma: no cover - guarded by caller probe
         raise RuntimeError("Pillow is not installed")
     if content_type not in ("image/png", "image/jpeg"):
@@ -125,44 +140,27 @@ def compose_certificate_image(
         raise ValueError("template bytes are not a decodable image") from exc
 
     width, height = source.size
-    base = source.convert("RGBA")
+    composed = source.convert("RGBA")
 
-    # Measure the text layout first so the scrim band matches exactly the
-    # region the name + subtitle will occupy.
-    measure = ImageDraw.Draw(base)
-    name_font_size = max(18, int(height * _NAME_HEIGHT_RATIO))
+    draw = ImageDraw.Draw(composed)
+    # 58pt at A4 landscape width, scaled proportionally for other canvases.
+    name_font_size = max(18, int(_NAME_PT_SIZE * width / _A4_LANDSCAPE_WIDTH_PT))
     name_font = _load_font(name_font_size)
-    max_text_width = int(width * 0.86)
-    lines = _wrap_name(measure, name, max_text_width, name_font)
+    # Center on the template's name-line (slightly left of canvas centre) and
+    # cap the width so names never reach the gold medal on the right.
+    center_x = width * _NAME_CENTER_X_RATIO
+    max_text_width = int(width * _NAME_MAX_WIDTH_RATIO)
+    lines = _wrap_name(draw, name, max_text_width, name_font)
 
     line_height = name_font_size + max(6, name_font_size // 5)
     block_height = line_height * len(lines)
     y_center = int(height * _NAME_CENTER_RATIO)
     name_top = y_center - block_height // 2
 
-    subtitle_font = _load_font(max(11, int(height * _SUBTITLE_HEIGHT_RATIO)))
-    subtitle_top = name_top + block_height + int(height * _SUBTITLE_GAP_RATIO)
-    subtitle_bottom = subtitle_top + int(height * _SUBTITLE_HEIGHT_RATIO)
-
-    # Semi-transparent scrim band behind the text guarantees legibility even
-    # when organizers pick a busy background design. Paste a *cropped* band —
-    # pasting a full-canvas image at an offset would wash out everything below.
-    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
-    band_top = max(0, name_top - int(height * 0.015))
-    band_bottom = min(height, subtitle_bottom + int(height * 0.01))
-    band = Image.new("RGBA", (width, max(1, band_bottom - band_top)), (255, 255, 255, 96))
-    overlay.paste(band, (0, band_top))
-
-    composed = Image.alpha_composite(base, overlay)
-    draw = ImageDraw.Draw(composed)
-    ink = (16, 32, 20, 255)
-
     y = name_top
     for line in lines:
-        _centered(draw, y, line, name_font, width, ink)
+        _centered(draw, center_x, y, line, name_font, _NAME_INK)
         y += line_height
-
-    _centered(draw, subtitle_top, f"{subtitle} · {team_id}", subtitle_font, width, ink)
 
     output = BytesIO()
     composed.convert("RGB").save(output, format="PNG", optimize=True)
