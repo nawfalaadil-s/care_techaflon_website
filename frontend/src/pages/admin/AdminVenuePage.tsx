@@ -14,6 +14,8 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
+import { THEME_LABELS } from '@/data/tracks'
+import { TEAM_STATUS_LABELS } from '@/data/status'
 
 export default function AdminVenuePage() {
   const [teams, setTeams] = useState<TeamRecord[]>([])
@@ -420,6 +422,14 @@ function BulkAllocationSection({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // Filters & options
+  const [search, setSearch] = useState('')
+  const [theme, setTheme] = useState('all')
+  const [status, setStatus] = useState('all')
+  const [department, setDepartment] = useState('all')
+  const [allocation, setAllocation] = useState<'all' | 'unassigned' | 'assigned'>('all')
+  const [sortBy, setSortBy] = useState<'name' | 'id' | 'department'>('name')
+
   const selectedVenueObj = venues.find((v) => v.id === selectedVenue)
 
   // Which teams are already assigned to which venue
@@ -438,12 +448,39 @@ function BulkAllocationSection({
     return teams.filter((t) => teamVenueMap[t.id] !== selectedVenue)
   }, [teams, teamVenueMap, selectedVenue])
 
+  // Filter + sort the eligible (assignable) teams
+  const filteredTeams = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    let list = eligibleTeams.filter((t) => {
+      if (theme !== 'all' && t.theme !== theme) return false
+      if (status !== 'all' && t.status !== status) return false
+      if (department !== 'all' && t.leader_department !== department) return false
+      if (allocation === 'unassigned' && teamVenueMap[t.id]) return false
+      if (allocation === 'assigned' && !teamVenueMap[t.id]) return false
+      if (q) {
+        const hay = `${t.team_name} ${t.team_id} ${t.leader_name} ${t.leader_email} ${t.leader_department}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+    list = [...list].sort((a, b) => {
+      if (sortBy === 'id') return a.team_id.localeCompare(b.team_id)
+      if (sortBy === 'department') return a.leader_department.localeCompare(b.leader_department)
+      return a.team_name.localeCompare(b.team_name)
+    })
+    return list
+  }, [eligibleTeams, search, theme, status, department, allocation, sortBy, teamVenueMap])
+
   // Teams currently in the selected venue
   const currentTeams = useMemo(() => {
     return teams.filter((t) => teamVenueMap[t.id] === selectedVenue)
   }, [teams, teamVenueMap, selectedVenue])
 
   const freeSlots = selectedVenueObj ? selectedVenueObj.available_seats : 0
+
+  // Quick-filtered counts
+  const unassignedCount = eligibleTeams.filter((t) => !teamVenueMap[t.id]).length
+  const assignedElsewhereCount = eligibleTeams.filter((t) => teamVenueMap[t.id]).length
 
   function toggleTeam(id: string) {
     setError(null)
@@ -456,6 +493,32 @@ function BulkAllocationSection({
       } else next.add(id)
       return next
     })
+  }
+
+  function toggleVisible() {
+    setError(null)
+    setSuccess(null)
+    const targetSize = Math.min(filteredTeams.length, freeSlots)
+    setSelectedTeamIds((prev) => {
+      const next = new Set(prev)
+      let added = 0
+      for (const t of filteredTeams) {
+        if (next.has(t.id)) continue
+        if (added >= targetSize) break
+        next.add(t.id)
+        added++
+      }
+      return next
+    })
+  }
+
+  function resetFilters() {
+    setSearch('')
+    setTheme('all')
+    setStatus('all')
+    setDepartment('all')
+    setAllocation('all')
+    setSortBy('name')
   }
 
   async function assign() {
@@ -576,14 +639,112 @@ function BulkAllocationSection({
                 </Badge>
               </div>
 
+              {/* Filters & options */}
+              <div className="rounded-md border bg-background p-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <Field label="Search" htmlFor="blk-search">
+                    <Input
+                      id="blk-search"
+                      type="search"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Team, ID, leader…"
+                    />
+                  </Field>
+                  <Field label="Theme">
+                    <Select
+                      value={theme}
+                      onChange={(e) => setTheme(e.target.value)}
+                    >
+                      <option value="all">All themes</option>
+                      {Object.entries(THEME_LABELS).map(([v, l]) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Status">
+                    <Select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                    >
+                      <option value="all">All statuses</option>
+                      {Object.entries(TEAM_STATUS_LABELS).map(([v, l]) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Department">
+                    <Select
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                    >
+                      <option value="all">All departments</option>
+                      {[
+                        ...new Set(eligibleTeams.map((t) => t.leader_department)),
+                      ]
+                        .sort()
+                        .map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                    </Select>
+                  </Field>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Field label="Allocation">
+                    <Select
+                      value={allocation}
+                      onChange={(e) =>
+                        setAllocation(e.target.value as 'all' | 'unassigned' | 'assigned')
+                      }
+                    >
+                      <option value="all">All teams</option>
+                      <option value="unassigned">
+                        Unassigned only ({unassignedCount})
+                      </option>
+                      <option value="assigned">
+                        Assigned elsewhere ({assignedElsewhereCount})
+                      </option>
+                    </Select>
+                  </Field>
+                  <Field label="Sort by">
+                    <Select
+                      value={sortBy}
+                      onChange={(e) =>
+                        setSortBy(e.target.value as 'name' | 'id' | 'department')
+                      }
+                    >
+                      <option value="name">Team name</option>
+                      <option value="id">Team ID</option>
+                      <option value="department">Department</option>
+                    </Select>
+                  </Field>
+                  <Button variant="outline" size="sm" onClick={resetFilters} className="mt-1">
+                    Reset filters
+                  </Button>
+                  <Badge variant="outline" className="mt-1">
+                    {filteredTeams.length} shown of {eligibleTeams.length}
+                  </Badge>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
-                {eligibleTeams.length === 0 ? (
+                {filteredTeams.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted-foreground">
-                    Every team is already allocated to this venue.
+                    {eligibleTeams.length === 0
+                      ? 'Every team is already allocated to this venue.'
+                      : 'No teams match the current filters.'}
                   </p>
                 ) : (
-                  eligibleTeams.map((t) => {
-                    const inAnotherVenue = teamVenueMap[t.id] && teamVenueMap[t.id] !== selectedVenue
+                  filteredTeams.map((t) => {
+                    const inAnotherVenue =
+                      teamVenueMap[t.id] && teamVenueMap[t.id] !== selectedVenue
                     return (
                       <label
                         key={t.id}
@@ -597,7 +758,10 @@ function BulkAllocationSection({
                           type="checkbox"
                           checked={selectedTeamIds.has(t.id)}
                           onChange={() => toggleTeam(t.id)}
-                          disabled={!selectedTeamIds.has(t.id) && selectedTeamIds.size >= freeSlots}
+                          disabled={
+                            !selectedTeamIds.has(t.id) &&
+                            selectedTeamIds.size >= freeSlots
+                          }
                           className="h-4 w-4 accent-primary"
                         />
                         <span className="min-w-0 flex-1 truncate font-medium">
@@ -606,6 +770,8 @@ function BulkAllocationSection({
                         <span className="font-mono text-xs text-muted-foreground">
                           {t.team_id}
                         </span>
+                        <Badge variant="outline">{THEME_LABELS[t.theme] ?? t.theme}</Badge>
+                        <Badge variant="outline">{TEAM_STATUS_LABELS[t.status] ?? t.status}</Badge>
                         {inAnotherVenue && (
                           <Badge variant="outline">
                             In: {venues.find((v) => v.id === teamVenueMap[t.id])?.name}
@@ -620,10 +786,19 @@ function BulkAllocationSection({
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button
                   variant="ghost"
+                  size="sm"
                   onClick={() => setSelectedTeamIds(new Set())}
                   disabled={selectedTeamIds.size === 0}
                 >
                   Clear selection
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={toggleVisible}
+                  disabled={busy || filteredTeams.length === 0 || freeSlots === 0}
+                >
+                  Select visible
                 </Button>
                 <Button
                   onClick={() => void assign()}
