@@ -271,6 +271,28 @@ export const certificatesApi = {
     const filename = match?.[1] ?? fallbackName ?? 'certificate'
     saveBlob(response.data, filename)
   },
+
+  // -------------------------------------------------------------------------
+  // Team members certificates (leader can download for all members)
+  // -------------------------------------------------------------------------
+
+  /** Get list of all team members with their certificate info. */
+  async myParticipants(): Promise<MineParticipants> {
+    const { data } = await apiClient.get<MineParticipants>('/certificates/mine/participants')
+    return data
+  },
+
+  /** Download a specific participant's personalized certificate image. */
+  async downloadParticipantCertificate(email: string): Promise<void> {
+    const response = await apiClient.get<Blob>(
+      `/certificates/mine/participant-image?email=${encodeURIComponent(email)}`,
+      { responseType: 'blob' },
+    )
+    const disposition = (response.headers?.['content-disposition'] as string | undefined) ?? ''
+    const match = /filename="?([^";]+)"?/i.exec(disposition)
+    const filename = match?.[1] ?? `${email.split('@')[0]}-certificate.png`
+    saveBlob(response.data, filename)
+  },
 }
 
 /** Trigger a browser file-save for a blob without leaking the object URL. */

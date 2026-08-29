@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { normalizeApiError } from '@/api/client'
-import { certificatesApi, type MyCertificate } from '@/api/certificateApi'
+import { certificatesApi, type MyCertificate, type MineParticipants } from '@/api/certificateApi'
 import { teamApi, type TeamRecord } from '@/api/teamApi'
 import { Badge } from '@/components/ui/badge'
 import type { BadgeVariant } from '@/components/ui/badge'
@@ -247,6 +247,7 @@ function TeamCard({
         <SubmissionPanel teamId={team.id} />
 
         <CertificateSection status={team.status} />
+        <TeamMembersCertificatesSection status={team.status} />
       </CardContent>
     </Card>
   )
@@ -522,5 +523,160 @@ function Row({ k, v }: { k: string; v: string }) {
       <dt className="shrink-0 text-sm font-medium text-muted-foreground">{k}</dt>
       <dd className="break-all text-right text-sm text-foreground">{v}</dd>
     </div>
+  )
+}
+
+
+// ---------------------------------------------------------------------------
+// Team members certificates (leader can download for all members)
+// ---------------------------------------------------------------------------
+
+type MembersCertState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ready'; data: MineParticipants }
+  | { kind: 'error'; message: string }
+
+function TeamMembersCertificatesSection({ status }: { status: string }) {
+  const [state, setState] = useState<MembersCertState>(
+    status === 'approved' ? { kind: 'loading' } : { kind: 'idle' },
+  )
+  const [downloading, setDownloading] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (status !== 'approved') return
+    let cancelled = false
+    void certificatesApi
+      .myParticipants()
+      .then((data) => {
+        if (!cancelled) setState({ kind: 'ready', data })
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setState({ kind: 'error', message: normalizeApiError(error).message })
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [status])
+
+  if (status !== 'approved') return null
+
+  if (state.kind === 'loading') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Team Members Certificates</CardTitle>
+          <CardDescription>Loading participants…</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <Spinner />
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (state.kind === 'error') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Team Members Certificates</CardTitle>
+          <CardDescription>Couldn't load participants</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            {state.message}
+          </div>
+          <Button variant="outline" onClick={() => setState({ kind: 'loading' })}>
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (state.kind !== 'ready') return null
+
+  const { available, participants } = state.data
+
+  async function handleDownload(email: string) {
+    setDownloading(email)
+    setDownloadError(null)
+    try {
+      await certificatesApi.downloadParticipantCertificate(email)
+    } catch (error) {
+      setDownloadError(normalizeApiError(error).message)
+    } finally {
+      setDownloading(null)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Team Members Certificates</CardTitle>
+        <CardDescription>
+          Download personalized certificates for all your team members.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!available && (
+          <p className="text-sm text-muted-foreground">
+            Certificates are not available yet — organizers must upload the
+            certificate template first.
+          </p>
+        )}
+        {available && participants.length === 0 && (
+          <p className="text-sm text-muted-foreground">No participants found.</p>
+        )}
+        {downloadError && (
+          <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            {downloadError}
+          </div>
+        )}
+        <ul className="space-y-3">
+          {participants.map((participant) => (
+            <li key={participant.email} className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">
+                  {participant.name}
+                  {participant.is_leader && <Badge className="ml-2" variant="outline">You</Badge>}
+                </p>
+                <p className="truncate text-sm text-muted-foreground">{participant.email}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {participant.personalized_png_available && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownload(participant.email)}
+                    disabled={downloading === participant.email}
+                  >
+                    {downloading === participant.email ? (
+                      <>
+                        <Spinner size="sm" /> Downloading…
+                      </>
+                    ) : (
+                      'Download PNG'
+                    )}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => openCertificateTab(participant.personalized_html)}
+                >
+                  Preview
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   )
 }

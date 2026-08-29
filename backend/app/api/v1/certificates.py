@@ -285,8 +285,8 @@ def my_team_participants(
     """Every participant of the leader's team with THEIR OWN certificate.
 
     Each entry carries a personalized HTML view (browser Save-as-PDF /
-    print) and — when the active template is a PNG/JPEG and Pillow is
-    installed — an ``image_url`` pointing at their name-composited PNG.
+    print) and â€” when the active template is a PNG/JPEG and Pillow is
+    installed â€” an ``image_url`` pointing at their name-composited PNG.
     """
     team = get_team_for_leader(db, current)
     if team is None:
@@ -562,7 +562,7 @@ def deactivate_certificate(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_admin),
 ) -> Response:
-    """Deactivate the active certificate — approvals stop mailing files (audit
+    """Deactivate the active certificate â€” approvals stop mailing files (audit
     history and this file remain retrievable)."""
     for existing in db.scalars(select(Certificate).where(Certificate.active.is_(True))):
         existing.active = False
