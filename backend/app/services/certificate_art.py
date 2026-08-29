@@ -31,12 +31,13 @@ except ImportError:  # pragma: no cover
     PILLOW_AVAILABLE = False
 
 # Rendering style for the official TechAFlon template (organizer spec):
-#   - name in the bundled Great Vibes script typeface, green ink
-#   - font size 48pt at A4 width (842pt), scaled proportionally
+#   - name in the bundled EB Garamond serif typeface (professional look
+#     matching the template's body text), green ink
+#   - font size 42pt at A4 width (842pt), scaled proportionally
 #   - solid white background band drawn behind the name for readability
 #   - positioned on the template's blank name line (~61.5% height)
 #   - no subtitle — the rest of the template artwork stays untouched
-_NAME_PT_SIZE = 48
+_NAME_PT_SIZE = 42
 _A4_LANDSCAPE_WIDTH_PT = 842
 _NAME_CENTER_RATIO = 0.615
 _NAME_CENTER_X_RATIO = 0.47  # template name-line centre, clear of the medal
@@ -45,35 +46,45 @@ _NAME_INK = (27, 94, 57, 255)  # deep TechAFlon green
 _NAME_BG = (255, 255, 255, 255)  # solid white backdrop behind the text
 _NAME_BG_PADDING = 14  # px of white margin around the text block (at A4 scale)
 
-_BUNDLED_FONT = Path(__file__).resolve().parent.parent / "assets" / "fonts" / "GreatVibes-Regular.ttf"
+_BUNDLED_FONT = (
+    Path(__file__).resolve().parent.parent / "assets" / "fonts" / "EBGaramond.ttf"
+)
 
 _FONT_CANDIDATES = (
     # Bundled event typeface (preferred)
     str(_BUNDLED_FONT),
-    # Previous bundled typeface (fallback)
+    # Previous bundled typefaces (fallbacks)
     str(Path(__file__).resolve().parent.parent / "assets" / "fonts" / "Anaktoria.ttf"),
-    # Windows
-    r"C:\Windows\Fonts\arialbd.ttf",
-    r"C:\Windows\Fonts\Arial.ttf",
-    r"C:\Windows\Fonts\segoeuib.ttf",
-    r"C:\Windows\Fonts\calibrib.ttf",
+    # Windows professional serifs
+    r"C:\Windows\Fonts\georgiab.ttf",
+    r"C:\Windows\Fonts\timesbd.ttf",
+    r"C:\Windows\Fonts\times.ttf",
     # Linux (common in Docker images such as Render's)
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
+    "/usr/share/fonts/TTF/DejaVuSerif-Bold.ttf",
     # macOS
-    "/Library/Fonts/Arial Bold.ttf",
-    "/System/Library/Fonts/Helvetica.ttc",
+    "/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
+    r"C:\Windows\Fonts\arialbd.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 )
 
 
 def _load_font(size: int):
-    """Best-effort bold font at ``size``, falling back to Pillow defaults."""
+    """Best-effort serif font at ``size``, falling back to Pillow defaults."""
     for candidate in _FONT_CANDIDATES:
         try:
-            return ImageFont.truetype(candidate, size=size)
+            font = ImageFont.truetype(candidate, size=size)
         except OSError:
             continue
+        # EB Garamond ships as a variable font; nudge it to a confident
+        # semibold weight so the name reads as engraved, not thin.
+        try:
+            font.set_variation_by_name("SemiBold")
+        except (OSError, ValueError):
+            pass
+        return font
     # Pillow >= 10.1 accepts a size for the bundled default font.
     try:
         return ImageFont.load_default(size=size)
@@ -120,8 +131,8 @@ def compose_certificate_image(
 ) -> tuple[bytes, str]:
     """Burn ``name`` into the uploaded template image.
 
-    The name is rendered in the bundled Great Vibes typeface, green ink on a
-    solid white backdrop, at 48pt (scaled to the A4 canvas width) on the
+    The name is rendered in the bundled EB Garamond serif typeface, green ink
+    on a solid white backdrop, at 42pt (scaled to the A4 canvas width) on the
     template's blank name line. No subtitle is drawn. ``team_id``/``subtitle``
     are accepted for caller compatibility but intentionally not rendered.
 
@@ -147,7 +158,7 @@ def compose_certificate_image(
     composed = source.convert("RGBA")
 
     draw = ImageDraw.Draw(composed)
-    # 58pt at A4 landscape width, scaled proportionally for other canvases.
+    # 42pt at A4 landscape width, scaled proportionally for other canvases.
     name_font_size = max(18, int(_NAME_PT_SIZE * width / _A4_LANDSCAPE_WIDTH_PT))
     name_font = _load_font(name_font_size)
     # Center on the template's name-line (slightly left of canvas centre) and
