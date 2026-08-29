@@ -543,6 +543,7 @@ function TeamMembersCertificatesSection({ status }: { status: string }) {
   )
   const [downloading, setDownloading] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
 
   useEffect(() => {
     if (status !== 'approved') return
@@ -560,7 +561,7 @@ function TeamMembersCertificatesSection({ status }: { status: string }) {
     return () => {
       cancelled = true
     }
-  }, [status])
+  }, [status, reload])
 
   if (status !== 'approved') return null
 
@@ -591,7 +592,14 @@ function TeamMembersCertificatesSection({ status }: { status: string }) {
           <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
             {state.message}
           </div>
-          <Button variant="outline" onClick={() => setState({ kind: 'loading' })}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setDownloadError(null)
+              setState({ kind: 'loading' })
+              setReload((n) => n + 1)
+            }}
+          >
             Retry
           </Button>
         </CardContent>
