@@ -7,6 +7,8 @@ from app.database.base import get_db
 from app.models.user import User
 from app.models.venue import TeamSeat
 from app.schemas.venue import (
+    TeamBulkSeatAssign,
+    TeamBulkUnassign,
     TeamSeatCreate,
     TeamSeatResponse,
     TeamSeatUpdate,
@@ -17,6 +19,8 @@ from app.schemas.venue import (
 )
 from app.services.venue import (
     assign_team_to_seat,
+    bulk_assign_teams_to_venue,
+    bulk_unassign_teams,
     create_venue,
     delete_venue,
     get_available_seats,
@@ -323,3 +327,47 @@ def unassign_team_seat_endpoint(
             detail="Team has no seat assignment.",
         )
     unassign_team_from_seat(db, team_id)
+
+
+@router.post(
+    "/{venue_id}/seats/bulk",
+    response_model=list[TeamSeatResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+def bulk_assign_teams_endpoint(
+    venue_id: str,
+    payload: TeamBulkSeatAssign,
+    current: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+) -> list[TeamSeatResponse]:
+    """Bulk assign many teams to a venue (admin only).
+
+    Teams are auto-allocated up to the venue's team capacity.
+    """
+    venue = get_venue_by_id(db, venue_id)
+    if venue is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Venue not found.",
+        )
+
+    try:
+        seats = bulk_assign_teams_to_venue(db, venue_id, payload.team_ids)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return [TeamSeatResponse.model_validate(s) for s in seats]
+
+
+@router.post("/seats/bulk-unassign")
+def bulk_unassign_teams_endpoint(
+    payload: TeamBulkUnassign,
+    current: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Bulk remove many teams from their venue assignments (admin only)."""
+    removed = bulk_unassign_teams(db, payload.team_ids)
+    return {"removed": removed}

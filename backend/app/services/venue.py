@@ -131,6 +131,73 @@ def unassign_team_from_seat(db: Session, team_id: str) -> bool:
     return False
 
 
+def bulk_assign_teams_to_venue(
+    db: Session, venue_id: str, team_ids: list[str]
+) -> list[TeamSeat]:
+    """Bulk assign a list of teams to a venue.
+
+    Each team is auto-assigned the next free seat number (so the unique
+    ``(venue_id, seat_number)`` constraint holds) up to the venue's capacity.
+    Teams already assigned elsewhere are rejected.
+    """
+    venue = get_venue_by_id(db, venue_id)
+    if venue is None:
+        raise ValueError("Venue not found")
+
+    if not team_ids:
+        raise ValueError("No teams provided")
+
+    team_assignments = db.scalars(
+        select(TeamSeat).where(TeamSeat.team_id.in_(team_ids))
+    ).all()
+    already_assigned = {s.team_id for s in team_assignments}
+
+    # Find the seat numbers already taken in this venue
+    taken_seats = set(
+        db.scalars(
+            select(TeamSeat.seat_number).where(TeamSeat.venue_id == venue_id)
+        ).all()
+    )
+
+    available_slots = [
+        i for i in range(1, venue.capacity + 1) if i not in taken_seats
+    ]
+
+    # Limit to how many teams the venue can still hold
+    eligible = [t for t in team_ids if t not in already_assigned]
+    if len(eligible) > len(available_slots):
+        raise ValueError(
+            f"Venue only has {len(available_slots)} free team slot(s), "
+            f"but {len(eligible)} team(s) were requested."
+        )
+
+    created: list[TeamSeat] = []
+    for idx, team_id in enumerate(eligible):
+        seat = TeamSeat(
+            venue_id=venue_id,
+            team_id=team_id,
+            seat_number=available_slots[idx],
+        )
+        db.add(seat)
+        created.append(seat)
+
+    db.flush()
+    return created
+
+
+def bulk_unassign_teams(db: Session, team_ids: list[str]) -> int:
+    """Remove seat assignments for multiple teams. Returns count removed."""
+    if not team_ids:
+        return 0
+    seats = db.scalars(
+        select(TeamSeat).where(TeamSeat.team_id.in_(team_ids))
+    ).all()
+    for s in seats:
+        db.delete(s)
+    db.flush()
+    return len(seats)
+
+
 def get_seat_by_team(db: Session, team_id: str) -> Optional[TeamSeat]:
     """Get a team's seat assignment."""
     return db.scalar(

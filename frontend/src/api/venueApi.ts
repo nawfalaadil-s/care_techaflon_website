@@ -148,4 +148,21 @@ export const venueApi = {
   async unassignTeamSeat(teamId: string): Promise<void> {
     await apiClient.delete(`/venues/seats/team/${teamId}`)
   },
+
+  /** Bulk assign many teams to a venue (admin only). */
+  async bulkAssign(venueId: string, teamIds: string[]): Promise<TeamSeat[]> {
+    const { data } = await apiClient.post<TeamSeat[]>(`/venues/${venueId}/seats/bulk`, {
+      team_ids: teamIds,
+    })
+    return data
+  },
+
+  /** Bulk remove many teams from their venue assignments (admin only). */
+  async bulkUnassign(teamIds: string[]): Promise<{ removed: number }> {
+    const { data } = await apiClient.post<{ removed: number }>(
+      '/venues/seats/bulk-unassign',
+      { team_ids: teamIds },
+    )
+    return data
+  },
 }

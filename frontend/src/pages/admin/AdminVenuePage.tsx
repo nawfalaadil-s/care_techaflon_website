@@ -4,7 +4,6 @@ import { normalizeApiError } from '@/api/client'
 import { teamApi, type TeamRecord } from '@/api/teamApi'
 import {
   venueApi,
-  type TeamSeat,
   type VenueWithSeats,
 } from '@/api/venueApi'
 import { Badge } from '@/components/ui/badge'
@@ -22,7 +21,7 @@ export default function AdminVenuePage() {
   const [state, setState] = useState<
     { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready' }
   >({ kind: 'loading' })
-  const [view, setView] = useState<'create' | 'assign' | 'seats'>('assign')
+  const [view, setView] = useState<'allocate' | 'manage'>('allocate')
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' })
@@ -50,27 +49,26 @@ export default function AdminVenuePage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-display text-xl font-bold">Venue &amp; seat allocation</h2>
+          <h2 className="font-display text-xl font-bold">Venue &amp; team allocation</h2>
           <p className="text-sm text-muted-foreground">
-            Create venues, then assign each team a seat in a venue.
+            Create venues with a team capacity, then bulk-assign teams to each venue.
           </p>
         </div>
         <Badge variant="outline">{venueCount} venue{venueCount === 1 ? '' : 's'}</Badge>
       </header>
 
-      {/* View switch */}
       <div className="flex flex-wrap items-center gap-2">
         <Button
-          variant={view === 'assign' ? 'primary' : 'outline'}
+          variant={view === 'allocate' ? 'primary' : 'outline'}
           size="sm"
-          onClick={() => setView('assign')}
+          onClick={() => setView('allocate')}
         >
-          Assign seats
+          Bulk allocate
         </Button>
         <Button
-          variant={view === 'create' ? 'primary' : 'outline'}
+          variant={view === 'manage' ? 'primary' : 'outline'}
           size="sm"
-          onClick={() => setView('create')}
+          onClick={() => setView('manage')}
         >
           Manage venues
         </Button>
@@ -100,8 +98,8 @@ export default function AdminVenuePage() {
 
       {state.kind === 'ready' && (
         <>
-          {view === 'create' && (
-            <CreateVenueSection
+          {view === 'manage' && (
+            <ManageVenuesSection
               venues={venues}
               onCreate={(v) => setVenues((prev) => [...prev, v])}
               onUpdate={(v) =>
@@ -111,27 +109,11 @@ export default function AdminVenuePage() {
             />
           )}
 
-          {view === 'assign' && (
-            <AssignSeatsSection
+          {view === 'allocate' && (
+            <BulkAllocationSection
               teams={teams}
               venues={venues}
-              onAssignment={(venueId, seat) =>
-                setVenues((prev) =>
-                  prev.map((v) =>
-                    v.id === venueId
-                      ? { ...v, seats: [...v.seats.filter((s) => s.team_id !== seat.team_id), seat] }
-                      : v,
-                  ),
-                )
-              }
-              onUnassign={(teamId) =>
-                setVenues((prev) =>
-                  prev.map((v) => ({
-                    ...v,
-                    seats: v.seats.filter((s) => s.team_id !== teamId),
-                  })),
-                )
-              }
+              onRefresh={load}
             />
           )}
         </>
@@ -141,10 +123,10 @@ export default function AdminVenuePage() {
 }
 
 // ---------------------------------------------------------------------------
-// Create / manage venues
+// Manage venues (create / edit / delete)
 // ---------------------------------------------------------------------------
 
-function CreateVenueSection({
+function ManageVenuesSection({
   venues,
   onCreate,
   onUpdate,
@@ -174,7 +156,7 @@ function CreateVenueSection({
       return
     }
     if (!capacity || capacity < 1) {
-      setError('Capacity must be at least 1.')
+      setError('Team capacity must be at least 1.')
       return
     }
     setBusy(true)
@@ -228,7 +210,7 @@ function CreateVenueSection({
                 placeholder="e.g. Block C, 2nd floor"
               />
             </Field>
-            <Field label="Seat capacity" htmlFor="vn-cap">
+            <Field label="Team capacity" htmlFor="vn-cap" hint="How many teams the venue holds">
               <Input
                 id="vn-cap"
                 type="number"
@@ -347,8 +329,8 @@ function VenueCard({
           <div className="min-w-0">
             <p className="font-medium">{venue.name}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {venue.location} · {venue.capacity} seats · {occupied} occupied (
-              {available} free)
+              {venue.location} · {venue.capacity} team{venue.capacity === 1 ? '' : 's'} capacity ·{' '}
+              {occupied} assigned ({available} free)
             </p>
             {venue.description && (
               <p className="mt-1 text-xs text-muted-foreground">{venue.description}</p>
@@ -386,7 +368,7 @@ function VenueCard({
                   onChange={(e) => setLocation(e.target.value)}
                 />
               </Field>
-              <Field label="Capacity" htmlFor={`vc-${venue.id}`}>
+              <Field label="Team capacity" htmlFor={`vc-${venue.id}`}>
                 <Input
                   id={`vc-${venue.id}`}
                   type="number"
@@ -420,79 +402,84 @@ function VenueCard({
 }
 
 // ---------------------------------------------------------------------------
-// Assign teams to venue seats
+// Bulk team allocation
 // ---------------------------------------------------------------------------
 
-function AssignSeatsSection({
+function BulkAllocationSection({
   teams,
   venues,
-  onAssignment,
-  onUnassign,
+  onRefresh,
 }: {
   teams: TeamRecord[]
   venues: VenueWithSeats[]
-  onAssignment: (venueId: string, seat: TeamSeat) => void
-  onUnassign: (teamId: string) => void
+  onRefresh: () => Promise<void>
 }) {
-  const [selectedTeam, setSelectedTeam] = useState('')
   const [selectedVenue, setSelectedVenue] = useState('')
-  const [seatNumber, setSeatNumber] = useState<number | ''>('')
+  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(() => new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
-  // Build lookup of team->seat from venues (derived during render).
-  const assigned = useMemo(() => {
-    const map: Record<string, TeamSeat> = {}
+  const selectedVenueObj = venues.find((v) => v.id === selectedVenue)
+
+  // Which teams are already assigned to which venue
+  const teamVenueMap = useMemo(() => {
+    const map: Record<string, string> = {}
     venues.forEach((v) => {
       v.seats.forEach((s) => {
-        map[s.team_id] = s
+        map[s.team_id] = v.id
       })
     })
     return map
   }, [venues])
 
-  const availableTeams = useMemo(() => {
-    return teams.filter((t) => !assigned[t.id])
-  }, [teams, assigned])
+  // Teams not assigned to the selected venue (available to add)
+  const eligibleTeams = useMemo(() => {
+    return teams.filter((t) => teamVenueMap[t.id] !== selectedVenue)
+  }, [teams, teamVenueMap, selectedVenue])
 
-  const currentVenue = venues.find((v) => v.id === selectedVenue)
+  // Teams currently in the selected venue
+  const currentTeams = useMemo(() => {
+    return teams.filter((t) => teamVenueMap[t.id] === selectedVenue)
+  }, [teams, teamVenueMap, selectedVenue])
 
-  // Available seats for the selected venue
-  const eligibleSeats = useMemo(() => {
-    if (!currentVenue) return [] as number[]
-    const taken = new Set(currentVenue.seats.map((s) => s.seat_number))
-    const seats: number[] = []
-    for (let i = 1; i <= currentVenue.capacity; i++) {
-      if (!taken.has(i)) seats.push(i)
-    }
-    return seats
-  }, [currentVenue])
+  const freeSlots = selectedVenueObj ? selectedVenueObj.available_seats : 0
+
+  function toggleTeam(id: string) {
+    setError(null)
+    setSuccess(null)
+    setSelectedTeamIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else if (selectedVenueObj && next.size >= freeSlots) {
+        return prev
+      } else next.add(id)
+      return next
+    })
+  }
 
   async function assign() {
     if (busy) return
-    if (!selectedTeam) {
-      setError('Select a team first.')
-      return
-    }
     if (!selectedVenue) {
       setError('Select a venue first.')
       return
     }
-    if (!seatNumber) {
-      setError('Choose a seat number.')
+    if (selectedTeamIds.size === 0) {
+      setError('Select at least one team to assign.')
+      return
+    }
+    if (selectedTeamIds.size > freeSlots) {
+      setError(`This venue only has ${freeSlots} free slot(s).`)
       return
     }
     setBusy(true)
     setError(null)
+    setSuccess(null)
     try {
-      const seat = await venueApi.assignTeamToSeat(selectedVenue, {
-        team_id: selectedTeam,
-        seat_number: Number(seatNumber),
-      })
-      onAssignment(selectedVenue, seat)
-      setSelectedTeam('')
-      setSelectedVenue('')
-      setSeatNumber('')
+      const seats = await venueApi.bulkAssign(selectedVenue, [...selectedTeamIds])
+      setSuccess(`${seats.length} team(s) assigned to “${selectedVenueObj?.name}”.`)
+      setSelectedTeamIds(new Set())
+      await onRefresh()
     } catch (err) {
       setError(normalizeApiError(err).message)
     } finally {
@@ -501,11 +488,30 @@ function AssignSeatsSection({
   }
 
   async function unassign(teamId: string) {
+    if (busy) return
     setBusy(true)
     setError(null)
+    setSuccess(null)
     try {
       await venueApi.unassignTeamSeat(teamId)
-      onUnassign(teamId)
+      await onRefresh()
+    } catch (err) {
+      setError(normalizeApiError(err).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function unassignAll() {
+    if (busy) return
+    if (!selectedVenue || currentTeams.length === 0) return
+    setBusy(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await venueApi.bulkUnassign(currentTeams.map((t) => t.id))
+      setSuccess(`Cleared ${currentTeams.length} team(s) from “${selectedVenueObj?.name}”.`)
+      await onRefresh()
     } catch (err) {
       setError(normalizeApiError(err).message)
     } finally {
@@ -517,131 +523,170 @@ function AssignSeatsSection({
     <div className="space-y-4">
       <Card className="border-primary/40 bg-primary/5">
         <CardContent className="space-y-3 pt-4">
-          <h3 className="text-sm font-semibold">Assign a team to a seat</h3>
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_140px_auto] sm:items-end">
-            <Field label="Team" htmlFor="as-team">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+            <Field label="Venue" htmlFor="blk-venue">
               <Select
-                id="as-team"
-                value={selectedTeam}
-                onChange={(e) => setSelectedTeam(e.target.value)}
-              >
-                <option value="">Select a team…</option>
-                {availableTeams.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.team_name} ({t.team_id})
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Venue" htmlFor="as-venue">
-              <Select
-                id="as-venue"
+                id="blk-venue"
                 value={selectedVenue}
                 onChange={(e) => {
                   setSelectedVenue(e.target.value)
-                  setSeatNumber('')
+                  setSelectedTeamIds(new Set())
+                  setError(null)
+                  setSuccess(null)
                 }}
               >
                 <option value="">Select a venue…</option>
                 {venues.map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.name} ({v.available_seats} free)
+                    {v.name} — {v.available_seats} free slot
+                    {v.available_seats === 1 ? '' : 's'} of {v.capacity}
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Seat number" htmlFor="as-seat">
-              <Select
-                id="as-seat"
-                value={String(seatNumber)}
-                onChange={(e) =>
-                  setSeatNumber(e.target.value ? Number(e.target.value) : '')
-                }
-                disabled={!currentVenue}
-              >
-                <option value="">Seat…</option>
-                {eligibleSeats.map((n) => (
-                  <option key={n} value={String(n)}>
-                    {n}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Button onClick={() => void assign()} disabled={busy} className="h-10 whitespace-nowrap">
-              {busy ? (
-                <>
-                  <Spinner size="sm" /> Assigning…
-                </>
-              ) : (
-                'Assign'
-              )}
-            </Button>
+            {selectedVenueObj && (
+              <div className="flex items-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => void unassignAll()}
+                  disabled={busy || currentTeams.length === 0}
+                  className="h-10 whitespace-nowrap"
+                >
+                  Clear venue ({currentTeams.length})
+                </Button>
+              </div>
+            )}
           </div>
+
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          {success && <p className="text-sm text-emerald-600">{success}</p>}
+
+          {selectedVenueObj && (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">
+                  Assign teams to {selectedVenueObj.name}
+                </h3>
+                <Badge variant="outline">
+                  {selectedTeamIds.size} selected · {freeSlots} free
+                </Badge>
+              </div>
+
+              <div className="space-y-1.5">
+                {eligibleTeams.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    Every team is already allocated to this venue.
+                  </p>
+                ) : (
+                  eligibleTeams.map((t) => {
+                    const inAnotherVenue = teamVenueMap[t.id] && teamVenueMap[t.id] !== selectedVenue
+                    return (
+                      <label
+                        key={t.id}
+                        className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm transition-colors ${
+                          selectedTeamIds.has(t.id)
+                            ? 'border-primary bg-primary/10'
+                            : 'bg-muted/30 hover:bg-accent'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTeamIds.has(t.id)}
+                          onChange={() => toggleTeam(t.id)}
+                          disabled={!selectedTeamIds.has(t.id) && selectedTeamIds.size >= freeSlots}
+                          className="h-4 w-4 accent-primary"
+                        />
+                        <span className="min-w-0 flex-1 truncate font-medium">
+                          {t.team_name}
+                        </span>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {t.team_id}
+                        </span>
+                        {inAnotherVenue && (
+                          <Badge variant="outline">
+                            In: {venues.find((v) => v.id === teamVenueMap[t.id])?.name}
+                          </Badge>
+                        )}
+                      </label>
+                    )
+                  })
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => setSelectedTeamIds(new Set())}
+                  disabled={selectedTeamIds.size === 0}
+                >
+                  Clear selection
+                </Button>
+                <Button
+                  onClick={() => void assign()}
+                  disabled={busy || selectedTeamIds.size === 0}
+                >
+                  {busy ? (
+                    <>
+                      <Spinner size="sm" /> Assigning…
+                    </>
+                  ) : (
+                    `Assign ${selectedTeamIds.size} team${selectedTeamIds.size === 1 ? '' : 's'}`
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
-      {/* Assignments overview */}
-      {Object.keys(assigned).length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          No seats assigned yet. Pick a team, venue and seat above.
-        </p>
-      ) : (
-        <div>
-          <h3 className="mb-2 text-sm font-semibold">Seat assignments</h3>
-          <ul className="space-y-2">
-            {venues.map((v) => {
-              if (v.seats.length === 0) return null
-              return (
-                <li key={v.id}>
-                  <Card>
-                    <CardContent className="py-3">
-                      <p className="mb-2 text-sm font-medium">
-                        {v.name}{' '}
-                        <span className="font-normal text-muted-foreground">
-                          ({v.seats.length}/{v.capacity})
-                        </span>
-                      </p>
-                      <div className="space-y-1">
-                        {[...v.seats]
-                          .sort((a, b) => a.seat_number - b.seat_number)
-                          .map((s) => {
-                            const team = teams.find((t) => t.id === s.team_id)
-                            return (
-                              <div
-                                key={s.id}
-                                className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-1.5 text-sm"
-                              >
-                                <span className="flex items-center gap-2">
-                                  <Badge variant="outline">Seat {s.seat_number}</Badge>
-                                  <span>{team?.team_name ?? s.team_id}</span>
-                                  <span className="font-mono text-xs text-muted-foreground">
-                                    {team?.team_id}
-                                  </span>
-                                </span>
-                                <button
-                                  onClick={() => void unassign(s.team_id)}
-                                  disabled={busy}
-                                  className="text-xs font-medium text-destructive hover:underline"
-                                >
-                                  Unassign
-                                </button>
-                              </div>
-                            )
-                          })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )}
+      {/* Currently assigned teams */}
+      <div>
+        <h3 className="mb-2 text-sm font-semibold">Team allocation</h3>
+        {currentTeams.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {selectedVenue
+              ? 'No teams assigned to this venue yet.'
+              : 'Select a venue to see its teams.'}
+          </p>
+        ) : (
+          <Card>
+            <CardContent className="py-3">
+              <p className="mb-2 text-sm font-medium">
+                {selectedVenueObj?.name}{' '}
+                <span className="font-normal text-muted-foreground">
+                  ({currentTeams.length}/{selectedVenueObj?.capacity})
+                </span>
+              </p>
+              <ul className="space-y-1">
+                {currentTeams.map((t) => (
+                  <li
+                    key={t.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-1.5 text-sm"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="font-medium">{t.team_name}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {t.team_id}
+                      </span>
+                    </span>
+                    <button
+                      onClick={() => void unassign(t.id)}
+                      disabled={busy}
+                      className="text-xs font-medium text-destructive hover:underline"
+                    >
+                      Unassign
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   )
 }

@@ -56,6 +56,18 @@ class TeamSeatUpdate(BaseModel):
     seat_number: int | None = Field(default=None, ge=1)
 
 
+class TeamBulkSeatAssign(BaseModel):
+    """Bulk assign a list of teams to a venue (no per-seat selection)."""
+
+    team_ids: list[str] = Field(min_length=1, max_length=400)
+
+
+class TeamBulkUnassign(BaseModel):
+    """Bulk remove a list of teams from their venue assignments."""
+
+    team_ids: list[str] = Field(min_length=1, max_length=400)
+
+
 class TeamSeatResponse(TeamSeatBase):
     """Team seat response with details."""
 
