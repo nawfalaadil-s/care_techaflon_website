@@ -17,7 +17,8 @@ from app.schemas.team import (
     TeamUpdate,
     TeamStatusUpdate,
     BulkOperationResult,
-    resolve_ps_title,
+    AllocatedProblemStatement,
+    resolve_ps,
 )
 from app.services.team import (
     bulk_delete_teams,
@@ -45,6 +46,20 @@ def _is_privileged(user: User) -> bool:
     return bool(user.is_admin or user.role in {"organizer", "admin"})
 
 
+def _attach_ps(db, response: TeamResponse) -> TeamResponse:
+    """Attach the allocated statement's title + full details to a response."""
+    statement = resolve_ps(db, response.problem_statement_id)
+    if statement is not None:
+        response.problem_statement_title = statement.title
+        response.problem_statement = AllocatedProblemStatement.model_validate(
+            statement
+        )
+    else:
+        response.problem_statement_title = None
+        response.problem_statement = None
+    return response
+
+
 @router.post("", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
 def create_team_endpoint(
     payload: TeamCreate,
@@ -64,7 +79,7 @@ def create_team_endpoint(
 
     background.add_task(task_send_team_confirmation, team.id)
     response = TeamResponse.model_validate(team)
-    response.problem_statement_title = resolve_ps_title(db, team.problem_statement_id)
+    _attach_ps(db, response)
     return response
 
 
@@ -81,7 +96,7 @@ def my_team(
             detail="No team found for your account.",
         )
     response = TeamResponse.model_validate(team)
-    response.problem_statement_title = resolve_ps_title(db, team.problem_statement_id)
+    _attach_ps(db, response)
     return response
 
 
@@ -213,7 +228,8 @@ def export_teams_csv(
                     f"{name} ({reg} | {email} | {dept} | {year} | {section})"
                 )
 
-        ps_title = resolve_ps_title(db, t.problem_statement_id) or ""
+        ps_statement = resolve_ps(db, t.problem_statement_id)
+        ps_title = ps_statement.title if ps_statement else ""
 
         sub = subs.get(t.id)
         project_name = sub.project_name if sub else ""
@@ -376,7 +392,7 @@ def get_team(
         )
     
     response = TeamResponse.model_validate(team)
-    response.problem_statement_title = resolve_ps_title(db, team.problem_statement_id)
+    _attach_ps(db, response)
     return response
 
 
@@ -419,7 +435,7 @@ def update_team_endpoint(
     
     updated = update_team(db, team, payload)
     response = TeamResponse.model_validate(updated)
-    response.problem_statement_title = resolve_ps_title(db, updated.problem_statement_id)
+    _attach_ps(db, response)
     return response
 
 
@@ -453,7 +469,7 @@ def update_team_status_endpoint(
         # (POST /certificates/send-all), not automatic on approval.
 
     response = TeamResponse.model_validate(updated)
-    response.problem_statement_title = resolve_ps_title(db, updated.problem_statement_id)
+    _attach_ps(db, response)
     return response
 
 
@@ -486,7 +502,7 @@ def list_teams_endpoint(
     responses = []
     for t in teams:
         r = TeamResponse.model_validate(t)
-        r.problem_statement_title = resolve_ps_title(db, t.problem_statement_id)
+        _attach_ps(db, r)
         responses.append(r)
     return responses
 
@@ -494,22 +510,30 @@ def list_teams_endpoint(
 @router.patch("/{team_id}/problem-statement")
 def allocate_problem_statement(
     team_id: str,
-    problem_statement_id: str,
+    problem_statement_id: str | None = None,
     current: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Allocate problem statement to a team (admin only)."""
+    """Allocate a problem statement to a team (admin only).
+
+    Call without ``problem_statement_id`` (or with an empty value) to clear
+    the allocation — i.e. mark the team as not allocated.
+    """
     team = get_team_by_id(db, team_id)
     if team is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Team not found.",
         )
-    
-    updated = update_problem_statement(db, team, problem_statement_id)
-    
+    normalized = (problem_statement_id or "").strip() or None
+    updated = update_problem_statement(db, team, normalized)
+
     return {
-        "message": "Problem statement allocated successfully",
+        "message": (
+            "Problem statement cleared — team marked as not allocated."
+            if normalized is None
+            else "Problem statement allocated successfully"
+        ),
         "team_id": team.team_id,
-        "problem_statement_id": problem_statement_id,
+        "problem_statement_id": updated.problem_statement_id,
     }

@@ -35,13 +35,18 @@ except ImportError:  # pragma: no cover
 #   - font size 50 (Pillow units) at the reference canvas width (1492px, the
 #     native size of cer_final.png), scaled proportionally for other sizes
 #   - name rendered in CAPITAL LETTERS
+#   - name always on a SINGLE line — long names shrink the font to fit the
+#     printed rule instead of wrapping (floor: _NAME_MIN_FONT_SIZE)
 #   - NO background band — the name sits directly on the template artwork
-#   - positioned on the template's blank name area (~56% height, just above
-#     the horizontal rule at ~62% on cer_final.png)
+#   - positioned on the template's blank name area, dropped 10px below the
+#     previous position so it sits snugly just above the horizontal rule
+#     (~62% height on cer_final.png)
 #   - no subtitle — the rest of the template artwork stays untouched
 _NAME_FONT_SIZE = 50
+_NAME_MIN_FONT_SIZE = 26  # shrink floor so very long names stay readable
 _REF_CANVAS_WIDTH = 1492  # native width of cer_final.png
 _NAME_CENTER_RATIO = 0.56  # vertical centre of the blank name area
+_NAME_DROP_PX = 10  # extra px (at reference scale) down toward the rule
 _NAME_CENTER_X_RATIO = 0.46  # centre of the printed name rule, clear of the medal
 _NAME_MAX_WIDTH_RATIO = 0.44  # keep the name within the printed rule width
 _NAME_INK = (27, 94, 57, 255)  # deep TechAFlon green
@@ -95,25 +100,26 @@ def _load_font(size: int):
         return ImageFont.load_default()
 
 
-def _wrap_name(draw: "ImageDraw.ImageDraw", name: str, max_width: int, font) -> list[str]:
-    """Split a long participant name onto at most three centered lines."""
-    words = name.strip().split()
-    if not words:
-        return ["Participant"]
-    lines: list[str] = []
-    current = words[0]
-    for word in words[1:]:
-        candidate = f"{current} {word}"
-        if draw.textlength(candidate, font=font) <= max_width:
-            current = candidate
-        else:
-            lines.append(current)
-            current = word
-            if len(lines) == 2:  # hard cap: 3 lines total
-                current = " ".join(words[words.index(word):])
-                break
-    lines.append(current)
-    return lines[:3]
+def _fit_name_font(draw: "ImageDraw.ImageDraw", name: str, max_width: int, base_size: int, min_size: int):
+    """Return ``(font, size)`` that renders ``name`` on a SINGLE line within ``max_width``.
+
+    Names always stay on one line: instead of wrapping, the font shrinks
+    from ``base_size`` (proportionally at first, then in small steps) down
+    to ``min_size`` until the whole name fits the printed rule.
+    """
+    size = base_size
+    font = _load_font(size)
+    text_width = draw.textlength(name, font=font)
+    if text_width > max_width and text_width > 0:
+        # One proportional step gets close to the target, then walk down in
+        # small steps to land just inside the rule (text width is not perfectly
+        # linear in font size).
+        size = max(min_size, int(size * max_width / text_width))
+        font = _load_font(size)
+        while size > min_size and draw.textlength(name, font=font) > max_width:
+            size = max(min_size, size - 1)
+            font = _load_font(size)
+    return font, size
 
 
 def _centered(
@@ -136,7 +142,8 @@ def compose_certificate_image(
 
     The name is rendered in Times New Roman (metric-compatible fallbacks on
     non-Windows platforms), deep green ink, in CAPITAL LETTERS at size 50
-    (scaled to the reference canvas width) on the template's blank name line —
+    (scaled to the reference canvas width) on a SINGLE line on the template's
+    blank name line — long names shrink the font to fit, and the name is drawn
     directly on the artwork with no background band. No subtitle is drawn.
     ``team_id``/``subtitle`` are accepted for caller compatibility but
     intentionally not rendered.
@@ -168,23 +175,28 @@ def compose_certificate_image(
     draw = ImageDraw.Draw(composed)
     # Size 50 at the reference canvas width (cer_final.png native size),
     # scaled proportionally so other template resolutions look identical.
-    name_font_size = max(14, round(_NAME_FONT_SIZE * width / _REF_CANVAS_WIDTH))
-    name_font = _load_font(name_font_size)
+    base_font_size = max(14, round(_NAME_FONT_SIZE * width / _REF_CANVAS_WIDTH))
+    min_font_size = max(12, round(_NAME_MIN_FONT_SIZE * width / _REF_CANVAS_WIDTH))
     # Center on the template's name rule (slightly left of canvas centre) and
     # cap the width so names stay within the printed rule, clear of the medal.
     center_x = width * _NAME_CENTER_X_RATIO
     max_text_width = int(width * _NAME_MAX_WIDTH_RATIO)
-    lines = _wrap_name(draw, display_name, max_text_width, name_font)
+    # Single-line guarantee: shrink the font until the whole name fits.
+    name_font, _ = _fit_name_font(draw, display_name, max_text_width, base_font_size, min_font_size)
 
-    line_height = name_font_size + max(6, name_font_size // 5)
-    block_height = line_height * len(lines)
-    y_center = int(height * _NAME_CENTER_RATIO)
-    name_top = y_center - block_height // 2
-
-    y = name_top
-    for line in lines:
-        _centered(draw, center_x, y, line, name_font, _NAME_INK)
-        y += line_height
+    # Drop the name 10px (at reference scale) below the blank area's centre so
+    # it sits snugly just above the printed rule. `_centered` takes the text's
+    # top coordinate, so shift up by half the text height to stay centred.
+    y_center = int(height * _NAME_CENTER_RATIO + _NAME_DROP_PX * width / _REF_CANVAS_WIDTH)
+    _, text_top, _, text_bottom = draw.textbbox((0, 0), display_name, font=name_font)
+    _centered(
+        draw,
+        center_x,
+        y_center - (text_bottom - text_top) // 2,
+        display_name,
+        name_font,
+        _NAME_INK,
+    )
 
     output = BytesIO()
     composed.convert("RGB").save(output, format="PNG", optimize=True)

@@ -148,6 +148,24 @@ class TeamCreate(BaseModel):
         return self
 
 
+class AllocatedProblemStatement(BaseModel):
+    """The full details of the statement allocated to a team.
+
+    Unlike the admin-facing list, this is resolved server-side so the team
+    leader never needs to browse statements — they only see their own.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    title: str
+    summary: str
+    description: str
+    track: str
+    difficulty: str
+    sponsor: str | None
+
+
 class TeamResponse(BaseModel):
     """Team response with all details."""
 
@@ -175,17 +193,23 @@ class TeamResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     # Resolved server-side; participants never browse statements — they only
-    # see the title of the one allocated to their team.
+    # see the details of the one allocated to their team.
     problem_statement_title: str | None = None
+    problem_statement: AllocatedProblemStatement | None = None
 
 
-def resolve_ps_title(db, problem_statement_id: str | None) -> str | None:
-    """Look up an allocated statement's title (None when unallocated)."""
+def resolve_ps(db, problem_statement_id: str | None):
+    """Return the allocated statement (None when unallocated or missing)."""
     if not problem_statement_id:
         return None
     from app.models.problem_statement import ProblemStatement
 
-    statement = db.get(ProblemStatement, problem_statement_id)
+    return db.get(ProblemStatement, problem_statement_id)
+
+
+def resolve_ps_title(db, problem_statement_id: str | None) -> str | None:
+    """Look up an allocated statement's title (None when unallocated)."""
+    statement = resolve_ps(db, problem_statement_id)
     return statement.title if statement else None
 
 

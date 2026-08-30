@@ -25,6 +25,17 @@ export interface TeamMemberInput {
 /** Alias kept for the portal/member types below. */
 export type TeamMember = TeamMemberInput
 
+/** The full details of the statement allocated to a team (backend-resolved). */
+export interface AllocatedProblemStatement {
+  id: string
+  title: string
+  summary: string
+  description: string
+  track: string
+  difficulty: string
+  sponsor: string | null
+}
+
 /** Payload for POST /teams — public TechAFlon registration. */
 export interface TeamCreatePayload {
   team_name: string
@@ -58,8 +69,9 @@ export interface TeamRecord {
   members: TeamMember[]
   problem_statement_id: string | null
   /** Resolved by the backend — statements are private, leaders only see
-   *  the title of the one allocated to their team. */
+   *  the details of the one allocated to their team. */
   problem_statement_title?: string | null
+  problem_statement?: AllocatedProblemStatement | null
   ps_allocated_at: string | null
   venue_name: string
   venue_location: string

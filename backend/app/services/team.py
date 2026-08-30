@@ -306,11 +306,33 @@ def get_team_for_leader(db: Session, user: User) -> Team | None:
     return db.scalar(select(Team).where(Team.leader_email == user.email))
 
 
-def update_problem_statement(db: Session, team: Team, problem_statement_id: str) -> Team:
-    """Allocate problem statement to a team."""
-    team.problem_statement_id = problem_statement_id
+def update_problem_statement(
+    db: Session, team: Team, problem_statement_id: str | None
+) -> Team:
+    """Allocate a problem statement to a team, or clear the allocation.
+
+    ``problem_statement_id=None`` marks the team as *not allocated* (the
+    statement reference and allocation timestamp are both cleared). When an
+    id is provided it must reference an existing statement.
+    """
     from datetime import datetime
-    team.ps_allocated_at = datetime.utcnow()
+
+    from fastapi import HTTPException
+    from fastapi import status as http_status
+
+    if problem_statement_id is None:
+        team.problem_statement_id = None
+        team.ps_allocated_at = None
+    else:
+        from app.models.problem_statement import ProblemStatement
+
+        if db.get(ProblemStatement, problem_statement_id) is None:
+            raise HTTPException(
+                http_status.HTTP_404_NOT_FOUND,
+                detail="Problem statement not found.",
+            )
+        team.problem_statement_id = problem_statement_id
+        team.ps_allocated_at = datetime.utcnow()
     db.commit()
     db.refresh(team)
     return team
