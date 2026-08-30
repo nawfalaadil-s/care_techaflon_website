@@ -47,6 +47,7 @@ export default function ProblemsAdminPage() {
   // Bulk selection
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [deleting, setDeleting] = useState(false)
+  const [toggling, setToggling] = useState(false)
 
   // Filters
   const [search, setSearch] = useState('')
@@ -215,6 +216,39 @@ export default function ProblemsAdminPage() {
     }
   }
 
+  async function bulkSetPublished(publish: boolean) {
+    const ids = [...selected]
+    if (ids.length === 0 || toggling) return
+    setToggling(true)
+    setError(null)
+    try {
+      const verb = publish ? 'publish' : 'unpublish'
+      const results = await Promise.allSettled(
+        ids.map((id) => problemApi.update(id, { published: publish })),
+      )
+      const failed = results.filter((r) => r.status === 'rejected').length
+      if (failed > 0)
+        setError(`${failed} of ${ids.length} statements failed to ${verb}.`)
+      setStatements((current) =>
+        current.map((s) => {
+          const idx = ids.indexOf(s.id)
+          if (idx === -1) return s
+          const r = results[idx]
+          return r.status === 'fulfilled' ? r.value : s
+        }),
+      )
+      setSelected(new Set())
+    } finally {
+      setToggling(false)
+    }
+  }
+
+  const selectedStatements = statements.filter((s) => selected.has(s.id))
+  const allSelectedPublished =
+    selectedStatements.length > 0 && selectedStatements.every((s) => s.published)
+  const allSelectedDraft =
+    selectedStatements.length > 0 && selectedStatements.every((s) => !s.published)
+
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground">
@@ -372,6 +406,34 @@ export default function ProblemsAdminPage() {
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setSelected(new Set())}>
                 Clear selection
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={toggling || allSelectedPublished}
+                onClick={() => void bulkSetPublished(true)}
+              >
+                {toggling ? (
+                  <>
+                    <Spinner size="sm" /> Saving…
+                  </>
+                ) : (
+                  `Publish ${selected.size} selected`
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={toggling || allSelectedDraft}
+                onClick={() => void bulkSetPublished(false)}
+              >
+                {toggling ? (
+                  <>
+                    <Spinner size="sm" /> Saving…
+                  </>
+                ) : (
+                  `Unpublish ${selected.size} selected`
+                )}
               </Button>
               <Button
                 variant="destructive"
