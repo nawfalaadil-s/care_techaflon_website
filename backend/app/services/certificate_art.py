@@ -38,7 +38,7 @@ except ImportError:  # pragma: no cover
 #   - name always on a SINGLE line — long names shrink the font to fit the
 #     printed rule instead of wrapping (floor: _NAME_MIN_FONT_SIZE)
 #   - NO background band — the name sits directly on the template artwork
-#   - positioned on the template's blank name area, dropped 18px below the
+#   - positioned on the template's blank name area, dropped 22px below the
 #     previous position so it sits on / just above the horizontal rule
 #     (~62% height on cer_final.png)
 #   - no subtitle — the rest of the template artwork stays untouched
@@ -46,7 +46,7 @@ _NAME_FONT_SIZE = 50
 _NAME_MIN_FONT_SIZE = 26  # shrink floor so very long names stay readable
 _REF_CANVAS_WIDTH = 1492  # native width of cer_final.png
 _NAME_CENTER_RATIO = 0.56  # vertical centre of the blank name area
-_NAME_DROP_PX = 18  # extra px (at reference scale) down toward / onto the rule
+_NAME_DROP_PX = 22  # extra px (at reference scale) down toward / onto the rule
 _NAME_CENTER_X_RATIO = 0.46  # centre of the printed name rule, clear of the medal
 _NAME_MAX_WIDTH_RATIO = 0.44  # keep the name within the printed rule width
 _NAME_INK = (27, 94, 57, 255)  # deep TechAFlon green
@@ -184,7 +184,7 @@ def compose_certificate_image(
     # Single-line guarantee: shrink the font until the whole name fits.
     name_font, _ = _fit_name_font(draw, display_name, max_text_width, base_font_size, min_font_size)
 
-    # Drop the name 18px (at reference scale) below the blank area's centre so
+    # Drop the name 22px (at reference scale) below the blank area's centre so
     # it sits on / just above the printed rule. `_centered` takes the text's
     # top coordinate, so shift up by half the text height to stay centred.
     y_center = int(height * _NAME_CENTER_RATIO + _NAME_DROP_PX * width / _REF_CANVAS_WIDTH)
