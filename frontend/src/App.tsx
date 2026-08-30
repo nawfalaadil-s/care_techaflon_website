@@ -34,7 +34,6 @@ const AdminAllocationsPage = lazy(
   () => import('@/pages/admin/AdminAllocationsPage'),
 )
 const ProblemsAdminPage = lazy(() => import('@/pages/admin/ProblemsAdminPage'))
-const AdminEmailsPage = lazy(() => import('@/pages/admin/AdminEmailsPage'))
 
 const AdminCertificatesPage = lazy(
   () => import('@/pages/admin/AdminCertificatesPage'),
@@ -117,7 +116,6 @@ export default function App() {
               <Route path="/admin/venue" element={<AdminVenuePage />} />
               <Route path="/admin/allocations" element={<AdminAllocationsPage />} />
               <Route path="/admin/problems" element={<ProblemsAdminPage />} />
-              <Route path="/admin/emails" element={<AdminEmailsPage />} />
               <Route path="/admin/certificates" element={<AdminCertificatesPage />} />
               <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
               <Route path="/admin/settings" element={<AdminSettingsPage />} />

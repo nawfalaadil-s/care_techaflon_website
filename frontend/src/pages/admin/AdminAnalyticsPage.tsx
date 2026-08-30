@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 
 import { normalizeApiError } from '@/api/client'
 import { statsApi, type AnalyticsStats } from '@/api/statsApi'
@@ -70,7 +69,7 @@ export default function AdminAnalyticsPage() {
     )
   }
 
-  const { funnel, teams_over_time, themes, departments, problem_adoption, emails } = data
+  const { funnel, teams_over_time, themes, departments, problem_adoption } = data
   const maxDailyCount = Math.max(1, ...teams_over_time.map((d) => d.count))
   const maxDepartmentTeams = Math.max(1, ...departments.map((i) => i.teams))
 
@@ -251,42 +250,6 @@ export default function AdminAnalyticsPage() {
                 </div>
               ))
             )}
-          </CardContent>
-        </Card>
-
-        {/* Email Health */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Email Delivery Health</CardTitle>
-            <CardDescription>
-              {emails.total} total transactional emails processed by the outbox.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {emails.total === 0 ? (
-              <p className="text-sm text-muted-foreground">No emails sent yet.</p>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {Object.entries(emails.by_status).map(([status, count]) => {
-                  const badgeVariant =
-                    status === 'sent' ? 'success' : status === 'logged' ? 'info' : status === 'failed' ? 'destructive' : 'warning'
-                  return (
-                    <div key={status} className="flex items-center justify-between rounded-lg border p-3">
-                      <span className="text-sm font-medium capitalize">{status}</span>
-                      <Badge variant={badgeVariant}>{count}</Badge>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-            <div className="pt-2">
-              <Link
-                to="/admin/emails"
-                className="link-underline text-xs font-medium text-primary hover:underline"
-              >
-                Inspect outbox logs →
-              </Link>
-            </div>
           </CardContent>
         </Card>
       </div>

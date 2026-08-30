@@ -10,7 +10,6 @@ const links = [
   { to: '/admin/venue', label: 'Venue' },
   { to: '/admin/allocations', label: 'Problem allocation' },
   { to: '/admin/problems', label: 'Problem statements' },
-  { to: '/admin/emails', label: 'Email outbox' },
   { to: '/admin/certificates', label: 'Certificates' },
   { to: '/admin/analytics', label: 'Analytics' },
   { to: '/admin/settings', label: 'Settings' },

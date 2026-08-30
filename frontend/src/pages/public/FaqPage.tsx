@@ -127,7 +127,7 @@ const FAQ_CATEGORIES = [
     items: [
       {
         question: 'How will I receive my certificate?',
-        answer: 'Certificates will be made available through the Team Portal and sent to the registered email address when published by the admin.',
+        answer: 'Certificates are made available through the Team Portal; download them there when published by the admin.',
       },
     ],
   },
