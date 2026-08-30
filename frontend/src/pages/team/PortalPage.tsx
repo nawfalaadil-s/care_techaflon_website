@@ -350,88 +350,49 @@ function CertificateSection({ status }: { status: string }) {
   if (status !== 'approved') {
     return (
       <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-        <p className="font-medium">🏅 Participation certificate</p>
-        <p className="mt-1 text-xs">
-          Status: Certificate will be available after team approval.
-        </p>
+        Certificate available after team approval.
       </div>
     )
   }
 
   return (
     <div className="rounded-lg border border-border bg-muted/40 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h4 className="text-sm font-semibold">🏅 Participation certificate</h4>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Your team has been approved — your participation certificate is
-            available now. Download or print it any time from this portal; you
-            never need to wait for email.
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h4 className="text-sm font-semibold">🏅 Participation certificate</h4>
 
         {(state.kind === 'loading' || state.kind === 'idle') && (
           <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
             <Spinner size="sm" /> Checking availability…
           </span>
         )}
-
-        {state.kind === 'ready' && state.data.available && (
-          <Badge variant="success">Status: Available</Badge>
-        )}
       </div>
 
       {state.kind === 'ready' && state.data.available && (
-        <>
-          <dl className="mt-3 space-y-1 rounded-md border border-border bg-background/60 p-3 text-xs">
-            <div className="flex items-start justify-between gap-4">
-              <dt className="text-muted-foreground">Status</dt>
-              <dd className="font-medium text-success">Available</dd>
-            </div>
-            <div className="flex items-start justify-between gap-4">
-              <dt className="text-muted-foreground">Certificate</dt>
-              <dd className="break-all text-right font-medium">
-                {state.data.certificate?.filename ?? state.data.download_filename ?? '—'}
-              </dd>
-            </div>
-          </dl>
-
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={downloading}
+            onClick={() => void handleDownload(state.data.download_filename ?? undefined)}
+          >
+            {downloading ? (
+              <>
+                <Spinner size="sm" /> Downloading…
+              </>
+            ) : (
+              'Download certificate'
+            )}
+          </Button>
+          {state.data.preview_html && (
             <Button
               size="sm"
-              variant="secondary"
-              disabled={downloading}
-              onClick={() => void handleDownload(state.data.download_filename ?? undefined)}
+              variant="outline"
+              onClick={() => openCertificateTab(state.data.preview_html ?? '')}
             >
-              {downloading ? (
-                <>
-                  <Spinner size="sm" /> Downloading…
-                </>
-              ) : (
-                'Download certificate'
-              )}
+              View & print
             </Button>
-            {state.data.preview_html && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => openCertificateTab(state.data.preview_html ?? '')}
-              >
-                View & print
-              </Button>
-            )}
-          </div>
-        </>
-      )}
-
-      {state.kind === 'ready' && !state.data.available && (
-        <p className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
-          {state.data.reason === 'no_active_certificate'
-            ? 'Organizers haven’t published the final certificate design yet — check back soon.'
-            : state.data.reason === 'certificates_disabled'
-              ? 'Certificates haven’t been released yet. Organizers will make them available soon.'
-              : 'Your certificate becomes available after approval.'}
-        </p>
+          )}
+        </div>
       )}
 
       {state.kind === 'error' && (
@@ -669,7 +630,7 @@ function TeamMembersCertificatesSection({ status }: { status: string }) {
 
   if (state.kind !== 'ready') return null
 
-  const { available, participants } = state.data
+  const { participants } = state.data
 
   async function handleDownload(email: string) {
     setDownloading(email)
@@ -687,20 +648,8 @@ function TeamMembersCertificatesSection({ status }: { status: string }) {
     <Card>
       <CardHeader>
         <CardTitle>Team Members Certificates</CardTitle>
-        <CardDescription>
-          Download personalized certificates for all your team members.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!available && (
-          <p className="text-sm text-muted-foreground">
-            Certificates are not available yet — organizers must upload the
-            certificate template first.
-          </p>
-        )}
-        {available && participants.length === 0 && (
-          <p className="text-sm text-muted-foreground">No participants found.</p>
-        )}
         {downloadError && (
           <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
             {downloadError}
@@ -717,22 +666,20 @@ function TeamMembersCertificatesSection({ status }: { status: string }) {
                 <p className="truncate text-sm text-muted-foreground">{participant.email}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {participant.personalized_png_available && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDownload(participant.email)}
-                    disabled={downloading === participant.email}
-                  >
-                    {downloading === participant.email ? (
-                      <>
-                        <Spinner size="sm" /> Downloading…
-                      </>
-                    ) : (
-                      'Download PNG'
-                    )}
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDownload(participant.email)}
+                  disabled={downloading === participant.email}
+                >
+                  {downloading === participant.email ? (
+                    <>
+                      <Spinner size="sm" /> Downloading…
+                    </>
+                  ) : (
+                    'Download PNG'
+                  )}
+                </Button>
                 <Button
                   size="sm"
                   variant="ghost"
