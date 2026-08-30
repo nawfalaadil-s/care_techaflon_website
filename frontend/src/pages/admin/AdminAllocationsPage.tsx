@@ -7,6 +7,7 @@ import {
   type AutoAllocateState,
 } from '@/api/problemApi'
 import { teamApi, type TeamRecord } from '@/api/teamApi'
+import { AdminFilterBar } from '@/components/admin/AdminFilterBar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,10 +15,10 @@ import {
   CardContent,
 } from '@/components/ui/card'
 import { Field } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { THEME_LABELS } from '@/data/tracks'
+import { TEAM_STATUS_LABELS, TEAM_STATUSES } from '@/data/status'
 
 export default function AdminAllocationsPage() {
   const [teams, setTeams] = useState<TeamRecord[]>([])
@@ -27,6 +28,8 @@ export default function AdminAllocationsPage() {
   >({ kind: 'loading' })
   const [search, setSearch] = useState('')
   const [onlyUnallocated, setOnlyUnallocated] = useState(false)
+  const [themeFilter, setThemeFilter] = useState<'all' | string>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | string>('all')
   const [auto, setAuto] = useState<AutoAllocateState | null>(null)
 
   const load = useCallback(async () => {
@@ -55,6 +58,8 @@ export default function AdminAllocationsPage() {
     const q = search.trim().toLowerCase()
     return teams.filter((t) => {
       if (onlyUnallocated && t.problem_statement_id) return false
+      if (themeFilter !== 'all' && t.theme !== themeFilter) return false
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false
       if (!q) return true
       return (
         t.team_name.toLowerCase().includes(q) ||
@@ -62,7 +67,7 @@ export default function AdminAllocationsPage() {
         t.leader_name.toLowerCase().includes(q)
       )
     })
-  }, [teams, search, onlyUnallocated])
+  }, [teams, search, onlyUnallocated, themeFilter, statusFilter])
 
   function replaceTeam(updated: TeamRecord) {
     setTeams((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
@@ -149,14 +154,58 @@ export default function AdminAllocationsPage() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-            <Input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search team, ID, leader…"
-            />
-            <label className="inline-flex h-10 items-center gap-2 text-sm text-muted-foreground">
+          <AdminFilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search team, ID, leader…"
+            resultCount={{ shown: filtered.length, total: teams.length }}
+            chips={[
+              onlyUnallocated
+                ? { label: 'Allocation: Unallocated only', onRemove: () => setOnlyUnallocated(false) }
+                : null,
+              themeFilter !== 'all'
+                ? {
+                    label: `Theme: ${THEME_LABELS[themeFilter] ?? themeFilter}`,
+                    onRemove: () => setThemeFilter('all'),
+                  }
+                : null,
+              statusFilter !== 'all'
+                ? {
+                    label: `Status: ${TEAM_STATUS_LABELS[statusFilter as keyof typeof TEAM_STATUS_LABELS] ?? statusFilter}`,
+                    onRemove: () => setStatusFilter('all'),
+                  }
+                : null,
+            ].filter((c): c is NonNullable<typeof c> => c !== null)}
+          >
+            <Field label="Theme" htmlFor="alloc-theme" className="mb-0">
+              <Select
+                id="alloc-theme"
+                value={themeFilter}
+                onChange={(e) => setThemeFilter(e.target.value)}
+              >
+                <option value="all">All themes</option>
+                {[...new Set(teams.map((t) => t.theme))].map((theme) => (
+                  <option key={theme} value={theme}>
+                    {THEME_LABELS[theme] ?? theme}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Team status" htmlFor="alloc-status" className="mb-0">
+              <Select
+                id="alloc-status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">All statuses</option>
+                {TEAM_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {TEAM_STATUS_LABELS[s]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground sm:pt-6">
               <input
                 type="checkbox"
                 checked={onlyUnallocated}
@@ -165,7 +214,7 @@ export default function AdminAllocationsPage() {
               />
               Only unallocated
             </label>
-          </div>
+          </AdminFilterBar>
 
           <ul className="space-y-2">
             {filtered.map((t) => (

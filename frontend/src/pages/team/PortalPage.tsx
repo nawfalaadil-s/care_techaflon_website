@@ -226,18 +226,32 @@ function TeamCard({
               {team.problem_statement.title}
             </h4>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Track: {THEME_LABELS[team.problem_statement.track] ?? team.problem_statement.track}
-              {' · '}Difficulty: {team.problem_statement.difficulty}
+              {THEME_LABELS[team.problem_statement.track] ?? team.problem_statement.track}
+              {team.problem_statement.difficulty
+                ? ` · ${team.problem_statement.difficulty}`
+                : ''}
               {team.problem_statement.sponsor
-                ? ` · Sponsor: ${team.problem_statement.sponsor}`
+                ? ` · ${team.problem_statement.sponsor}`
                 : ''}
             </p>
-            <p className="mt-3 text-sm font-medium text-foreground">
-              {team.problem_statement.summary}
-            </p>
-            <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">
-              {team.problem_statement.description}
-            </p>
+            <dl className="mt-3 space-y-3 text-sm">
+              <div>
+                <dt className="font-medium text-foreground">
+                  Summary
+                </dt>
+                <dd className="mt-0.5 text-muted-foreground">
+                  {team.problem_statement.summary}
+                </dd>
+              </div>
+              <div className="border-t pt-3">
+                <dt className="font-medium text-foreground">
+                  Description
+                </dt>
+                <dd className="mt-0.5 whitespace-pre-line text-muted-foreground">
+                  {team.problem_statement.description}
+                </dd>
+              </div>
+            </dl>
           </div>
         )}
 

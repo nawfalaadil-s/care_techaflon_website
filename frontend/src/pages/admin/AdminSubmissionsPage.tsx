@@ -7,11 +7,14 @@ import {
   statsApi,
   type AdminSubmissionRow,
 } from '@/api/statsApi'
+import { AdminFilterBar } from '@/components/admin/AdminFilterBar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { Field } from '@/components/ui/field'
+import { Select } from '@/components/ui/select'
 import { THEME_LABELS } from '@/data/tracks'
+import { TEAM_STATUS_LABELS, TEAM_STATUSES } from '@/data/status'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
@@ -28,6 +31,9 @@ export default function AdminSubmissionsPage() {
     { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready' }
   >({ kind: 'loading' })
   const [search, setSearch] = useState('')
+  const [themeFilter, setThemeFilter] = useState<'all' | string>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | string>('all')
+  const [lockFilter, setLockFilter] = useState<'all' | 'locked' | 'unlocked'>('all')
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' })
@@ -46,15 +52,20 @@ export default function AdminSubmissionsPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter(
-      (r) =>
+    return rows.filter((r) => {
+      if (themeFilter !== 'all' && r.theme !== themeFilter) return false
+      if (statusFilter !== 'all' && r.status !== statusFilter) return false
+      if (lockFilter === 'locked' && !r.locked) return false
+      if (lockFilter === 'unlocked' && r.locked) return false
+      if (!q) return true
+      return (
         r.team_name.toLowerCase().includes(q) ||
         r.team_id.toLowerCase().includes(q) ||
         r.project_name.toLowerCase().includes(q) ||
-        r.leader_email.toLowerCase().includes(q),
-    )
-  }, [rows, search])
+        r.leader_email.toLowerCase().includes(q)
+      )
+    })
+  }, [rows, search, themeFilter, statusFilter, lockFilter])
 
   return (
     <div className="space-y-6">
@@ -89,20 +100,77 @@ export default function AdminSubmissionsPage() {
 
       {state.kind === 'ready' && (
         <>
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search team, project, leader email…"
-          />
-
-          <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
-            Showing {filtered.length} of {rows.length} submissions
-          </p>
+          <AdminFilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search team, project, leader email…"
+            resultCount={{ shown: filtered.length, total: rows.length }}
+            chips={[
+              themeFilter !== 'all'
+                ? {
+                    label: `Theme: ${THEME_LABELS[themeFilter] ?? themeFilter}`,
+                    onRemove: () => setThemeFilter('all'),
+                  }
+                : null,
+              statusFilter !== 'all'
+                ? {
+                    label: `Status: ${TEAM_STATUS_LABELS[statusFilter as keyof typeof TEAM_STATUS_LABELS] ?? statusFilter}`,
+                    onRemove: () => setStatusFilter('all'),
+                  }
+                : null,
+              lockFilter !== 'all'
+                ? {
+                    label:
+                      lockFilter === 'locked' ? 'State: Locked (final)' : 'State: Unlocked',
+                    onRemove: () => setLockFilter('all'),
+                  }
+                : null,
+            ].filter((c): c is NonNullable<typeof c> => c !== null)}
+          >
+            <Field label="Theme" htmlFor="sub-theme" className="mb-0">
+              <Select
+                id="sub-theme"
+                value={themeFilter}
+                onChange={(e) => setThemeFilter(e.target.value)}
+              >
+                <option value="all">All themes</option>
+                {[...new Set(rows.map((r) => r.theme))].map((theme) => (
+                  <option key={theme} value={theme}>
+                    {THEME_LABELS[theme] ?? theme}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Team status" htmlFor="sub-status" className="mb-0">
+              <Select
+                id="sub-status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">All statuses</option>
+                {TEAM_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {TEAM_STATUS_LABELS[s]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Submission state" htmlFor="sub-lock" className="mb-0">
+              <Select
+                id="sub-lock"
+                value={lockFilter}
+                onChange={(e) => setLockFilter(e.target.value as typeof lockFilter)}
+              >
+                <option value="all">All states</option>
+                <option value="locked">Locked (final)</option>
+                <option value="unlocked">Unlocked</option>
+              </Select>
+            </Field>
+          </AdminFilterBar>
 
           {filtered.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              No submissions yet.
+              No submissions match these filters.
             </p>
           ) : (
             <ul className="space-y-2">

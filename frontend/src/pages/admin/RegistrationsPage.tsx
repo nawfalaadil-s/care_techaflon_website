@@ -6,6 +6,7 @@ import { normalizeApiError } from '@/api/client'
 import { problemApi, type ProblemStatement } from '@/api/problemApi'
 import { statsApi, type AdminSubmissionRow } from '@/api/statsApi'
 import { teamApi, type TeamRecord } from '@/api/teamApi'
+import { AdminFilterBar } from '@/components/admin/AdminFilterBar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,7 +20,7 @@ import { Field } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { THEME_LABELS } from '@/data/tracks'
+import { DEPARTMENT_OPTIONS, THEME_LABELS, YEAR_OPTIONS } from '@/data/tracks'
 import {
   TEAM_STATUSES,
   TEAM_STATUS_LABELS,
@@ -46,6 +47,8 @@ export default function RegistrationsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | string>('all')
   const [themeFilter, setThemeFilter] = useState<'all' | string>('all')
+  const [departmentFilter, setDepartmentFilter] = useState<'all' | string>('all')
+  const [yearFilter, setYearFilter] = useState<'all' | string>('all')
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [updating, setUpdating] = useState(false)
@@ -86,6 +89,9 @@ export default function RegistrationsPage() {
     return teams.filter((t) => {
       if (statusFilter !== 'all' && t.status !== statusFilter) return false
       if (themeFilter !== 'all' && t.theme !== themeFilter) return false
+      if (departmentFilter !== 'all' && t.leader_department !== departmentFilter)
+        return false
+      if (yearFilter !== 'all' && t.leader_year !== yearFilter) return false
       if (!q) return true
       return (
         t.team_name.toLowerCase().includes(q) ||
@@ -95,7 +101,7 @@ export default function RegistrationsPage() {
         t.leader_register_number.toLowerCase().includes(q)
       )
     })
-  }, [teams, search, statusFilter, themeFilter])
+  }, [teams, search, statusFilter, themeFilter, departmentFilter, yearFilter])
 
   const selected = teams.find((t) => t.id === selectedId) ?? null
 
@@ -248,65 +254,125 @@ export default function RegistrationsPage() {
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-        <label className="contents">
-          <span className="sr-only">Search registrations</span>
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search team, ID, leader, email…"
-          />
-        </label>
-        <Select
-          aria-label="Filter by status"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-          className="sm:w-44"
-        >
-          <option value="all">All statuses</option>
-          {TEAM_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {TEAM_STATUS_LABELS[s]}
-            </option>
-          ))}
-        </Select>
-        <Select
-          aria-label="Filter by theme"
-          value={themeFilter}
-          onChange={(e) => setThemeFilter(e.target.value)}
-          className="sm:w-52"
-        >
-          <option value="all">All themes</option>
-          {[...new Set(teams.map((t) => t.theme))].map((theme) => (
-            <option key={theme} value={theme}>
-              {THEME_LABELS[theme] ?? theme}
-            </option>
-          ))}
-        </Select>
-        <Button
-          variant="outline"
-          disabled={exporting !== null}
-          onClick={() => void handleExportCsv('teams')}
-          className="sm:w-auto"
-        >
-          {exporting === 'teams' ? <Spinner size="sm" /> : <Download className="h-4 w-4" />}
-          {exporting === 'teams' ? 'Exporting…' : 'Export'}
-        </Button>
-        <Button
-          variant="outline"
-          disabled={exporting !== null}
-          onClick={() => void handleExportCsv('registration')}
-          className="sm:w-auto"
-        >
-          {exporting === 'registration' ? (
-            <Spinner size="sm" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
-          {exporting === 'registration' ? 'Exporting…' : 'Registration CSV'}
-        </Button>
-      </div>
+      <AdminFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search team, ID, leader, email…"
+        resultCount={{ shown: filtered.length, total: teams.length }}
+        chips={[
+          statusFilter !== 'all'
+            ? {
+                label: `Status: ${TEAM_STATUS_LABELS[statusFilter as keyof typeof TEAM_STATUS_LABELS] ?? statusFilter}`,
+                onRemove: () => setStatusFilter('all'),
+              }
+            : null,
+          themeFilter !== 'all'
+            ? {
+                label: `Theme: ${THEME_LABELS[themeFilter] ?? themeFilter}`,
+                onRemove: () => setThemeFilter('all'),
+              }
+            : null,
+          departmentFilter !== 'all'
+            ? {
+                label: `Department: ${departmentFilter}`,
+                onRemove: () => setDepartmentFilter('all'),
+              }
+            : null,
+          yearFilter !== 'all'
+            ? {
+                label: `Year: ${yearFilter}`,
+                onRemove: () => setYearFilter('all'),
+              }
+            : null,
+        ].filter((c): c is NonNullable<typeof c> => c !== null)}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={exporting !== null}
+              onClick={() => void handleExportCsv('teams')}
+            >
+              {exporting === 'teams' ? (
+                <Spinner size="sm" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {exporting === 'teams' ? 'Exporting…' : 'Export'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={exporting !== null}
+              onClick={() => void handleExportCsv('registration')}
+            >
+              {exporting === 'registration' ? (
+                <Spinner size="sm" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {exporting === 'registration' ? 'Exporting…' : 'Registration CSV'}
+            </Button>
+          </>
+        }
+      >
+        <Field label="Status" htmlFor="reg-status" className="mb-0">
+          <Select
+            id="reg-status"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All statuses</option>
+            {TEAM_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {TEAM_STATUS_LABELS[s]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Theme" htmlFor="reg-theme" className="mb-0">
+          <Select
+            id="reg-theme"
+            value={themeFilter}
+            onChange={(e) => setThemeFilter(e.target.value)}
+          >
+            <option value="all">All themes</option>
+            {[...new Set(teams.map((t) => t.theme))].map((theme) => (
+              <option key={theme} value={theme}>
+                {THEME_LABELS[theme] ?? theme}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Department" htmlFor="reg-dept" className="mb-0">
+          <Select
+            id="reg-dept"
+            value={departmentFilter}
+            onChange={(e) => setDepartmentFilter(e.target.value)}
+          >
+            <option value="all">All departments</option>
+            {DEPARTMENT_OPTIONS.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Year" htmlFor="reg-year" className="mb-0">
+          <Select
+            id="reg-year"
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
+          >
+            <option value="all">All years</option>
+            {YEAR_OPTIONS.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </AdminFilterBar>
 
       {error && (
         <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
@@ -466,10 +532,11 @@ export default function RegistrationsPage() {
       )}
 
       {/* List */}
-      <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
-        Showing {filtered.length} of {teams.length} registrations
-        {selectedIds.size > 0 && ` · ${selectedIds.size} selected`}
-      </p>
+      {selectedIds.size > 0 && (
+        <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+          {selectedIds.size} selected
+        </p>
+      )}
       <ul className="space-y-2">
         {filtered.map((t) => (
           <li key={t.id}>

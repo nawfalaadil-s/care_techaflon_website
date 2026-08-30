@@ -20,6 +20,9 @@ class SiteSettingsRead(BaseModel):
     # Master portal switch: certificates appear to leaders/members only when
     # the organizer turns this on (approval + active certificate still apply).
     certificates_visible: bool = False
+    # Master switch for project submission: when off, leaders cannot upload
+    # or edit their project and the portal shows submissions as closed.
+    submissions_open: bool = True
 
 
 class SiteSettingsUpdate(BaseModel):
@@ -34,6 +37,7 @@ class SiteSettingsUpdate(BaseModel):
     announcement: str | None = Field(default=None, max_length=500)
     auto_allocate_enabled: bool | None = None
     certificates_visible: bool | None = None
+    submissions_open: bool | None = None
 
     @field_validator("registration_deadline")
     @classmethod

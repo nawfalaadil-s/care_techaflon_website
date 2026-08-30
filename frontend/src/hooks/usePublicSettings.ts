@@ -21,6 +21,7 @@ const fallbackSettings: SiteSettings = {
   contact_email: '',
   announcement: '',
   certificates_visible: false,
+  submissions_open: true,
 }
 
 let sharedFetch: Promise<SiteSettings> | null = null

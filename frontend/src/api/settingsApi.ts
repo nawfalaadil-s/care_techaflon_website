@@ -9,6 +9,8 @@ export interface SiteSettings {
   announcement: string
   /** Master portal switch — certificates show to leaders only when true. */
   certificates_visible: boolean
+  /** Master switch — project submission open/closed for leader portal. */
+  submissions_open: boolean
 }
 
 export type SiteSettingsUpdate = Partial<SiteSettings>

@@ -64,12 +64,22 @@ def upsert_for_team(
     corrections are genuinely needed.
     """
     from app.models.team import Team
+    from app.services.site_settings import are_submissions_open
 
     team = db.get(Team, registration_id)
     if team is None or team.leader_email != user.email:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Team not found or access denied.",
+        )
+
+    # Global submission window: when organizers have closed submissions,
+    # creating or editing a project is rejected. Withdrawals stay allowed so
+    # a team can always retract a submission the admins have reopened.
+    if not are_submissions_open(db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Project submissions are currently closed by the organizers.",
         )
 
     # A locked submission is final for leaders. Admins can unlock it from

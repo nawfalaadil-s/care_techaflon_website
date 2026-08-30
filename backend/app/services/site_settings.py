@@ -37,6 +37,10 @@ DEFAULTS: dict[str, object] = {
     # an active certificate must also hold. Admin upload/email tooling is
     # unaffected and stays usable while the portal section is hidden.
     "certificates_visible": False,
+    # Master switch for PROJECT SUBMISSION. When false, teams cannot submit
+    # or edit their project from the leader portal (the API rejects upserts)
+    # and the portal shows a clear "submissions closed" notice.
+    "submissions_open": True,
 }
 
 _SETTING_KEYS = frozenset(DEFAULTS)
@@ -65,6 +69,14 @@ def are_certificates_visible(db: "Session") -> bool:
     row = db.get(SiteSetting, "certificates_visible")
     if row is None:
         return bool(DEFAULTS["certificates_visible"])
+    return bool(row.value)
+
+
+def are_submissions_open(db: "Session") -> bool:
+    """Cheap portal-switch check used by the submission endpoints."""
+    row = db.get(SiteSetting, "submissions_open")
+    if row is None:
+        return bool(DEFAULTS["submissions_open"])
     return bool(row.value)
 
 

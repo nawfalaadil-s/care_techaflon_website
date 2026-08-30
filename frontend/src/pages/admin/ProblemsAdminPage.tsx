@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { normalizeApiError } from '@/api/client'
 import {
@@ -6,6 +6,7 @@ import {
   type ProblemStatement,
   type ProblemStatementInput,
 } from '@/api/problemApi'
+import { AdminFilterBar } from '@/components/admin/AdminFilterBar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,6 +22,8 @@ import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { TRACK_OPTIONS, TRACK_LABELS } from '@/data/tracks'
+
+const DIFFICULTY_OPTIONS = ['easy', 'medium', 'hard']
 
 const EMPTY_FORM: ProblemStatementInput = {
   title: '',
@@ -44,6 +47,29 @@ export default function ProblemsAdminPage() {
   // Bulk selection
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [deleting, setDeleting] = useState(false)
+
+  // Filters
+  const [search, setSearch] = useState('')
+  const [trackFilter, setTrackFilter] = useState<'all' | string>('all')
+  const [difficultyFilter, setDifficultyFilter] = useState<'all' | string>('all')
+  const [publishedFilter, setPublishedFilter] = useState<'all' | 'live' | 'draft'>('all')
+
+  const filteredStatements = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return statements.filter((s) => {
+      if (trackFilter !== 'all' && s.track !== trackFilter) return false
+      if (difficultyFilter !== 'all' && s.difficulty !== difficultyFilter) return false
+      if (publishedFilter === 'live' && !s.published) return false
+      if (publishedFilter === 'draft' && s.published) return false
+      if (!q) return true
+      return (
+        s.title.toLowerCase().includes(q) ||
+        s.id.toLowerCase().includes(q) ||
+        s.summary.toLowerCase().includes(q) ||
+        (s.sponsor ?? '').toLowerCase().includes(q)
+      )
+    })
+  }, [statements, search, trackFilter, difficultyFilter, publishedFilter])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -357,8 +383,76 @@ export default function ProblemsAdminPage() {
         </Card>
       )}
 
+      <AdminFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search title, ID, sponsor…"
+        resultCount={{ shown: filteredStatements.length, total: statements.length }}
+        chips={[
+          trackFilter !== 'all'
+            ? {
+                label: `Track: ${TRACK_LABELS[trackFilter] ?? trackFilter}`,
+                onRemove: () => setTrackFilter('all'),
+              }
+            : null,
+          difficultyFilter !== 'all'
+            ? {
+                label: `Difficulty: ${difficultyFilter}`,
+                onRemove: () => setDifficultyFilter('all'),
+              }
+            : null,
+          publishedFilter !== 'all'
+            ? {
+                label:
+                  publishedFilter === 'live' ? 'Status: Live' : 'Status: Draft',
+                onRemove: () => setPublishedFilter('all'),
+              }
+            : null,
+        ].filter((c): c is NonNullable<typeof c> => c !== null)}
+      >
+        <Field label="Track" htmlFor="ps-filter-track" className="mb-0">
+          <Select
+            id="ps-filter-track"
+            value={trackFilter}
+            onChange={(e) => setTrackFilter(e.target.value)}
+          >
+            <option value="all">All tracks</option>
+            {TRACK_OPTIONS.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Difficulty" htmlFor="ps-filter-diff" className="mb-0">
+          <Select
+            id="ps-filter-diff"
+            value={difficultyFilter}
+            onChange={(e) => setDifficultyFilter(e.target.value)}
+          >
+            <option value="all">All difficulties</option>
+            {DIFFICULTY_OPTIONS.map((d) => (
+              <option key={d} value={d}>
+                {d[0].toUpperCase() + d.slice(1)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Status" htmlFor="ps-filter-status" className="mb-0">
+          <Select
+            id="ps-filter-status"
+            value={publishedFilter}
+            onChange={(e) => setPublishedFilter(e.target.value as typeof publishedFilter)}
+          >
+            <option value="all">All statuses</option>
+            <option value="live">Live</option>
+            <option value="draft">Draft</option>
+          </Select>
+        </Field>
+      </AdminFilterBar>
+
       <ul className="space-y-2">
-        {statements.map((statement) => (
+        {filteredStatements.map((statement) => (
           <li key={statement.id}>
             <Card className={selected.has(statement.id) ? 'border-primary bg-primary/5' : undefined}>
               <CardContent className="pt-5">
@@ -411,9 +505,9 @@ export default function ProblemsAdminPage() {
             </Card>
           </li>
         ))}
-        {statements.length === 0 && (
+        {filteredStatements.length === 0 && (
           <li className="py-8 text-center text-sm text-muted-foreground">
-            No problem statements yet — create the first one.
+            No problem statements match these filters.
           </li>
         )}
       </ul>

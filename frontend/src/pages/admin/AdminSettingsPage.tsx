@@ -25,6 +25,7 @@ export default function AdminSettingsPage() {
     contact_email: '',
     announcement: '',
     certificates_visible: false,
+    submissions_open: true,
   })
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
@@ -64,6 +65,7 @@ export default function AdminSettingsPage() {
         registration_deadline: form.registration_deadline || null,
         contact_email: form.contact_email.trim(),
         announcement: form.announcement.trim(),
+        submissions_open: form.submissions_open,
       }
       const updated = await adminSettingsApi.patch(payload)
       setForm(updated)
@@ -211,6 +213,47 @@ export default function AdminSettingsPage() {
                 onChange={(e) => updateField('registration_deadline', e.target.value || null)}
               />
             </Field>
+          </CardContent>
+        </Card>
+
+        {/* Project Submission */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Project Submission</CardTitle>
+            <CardDescription>
+              Control whether teams can upload their project from the leader portal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Allow Project Submissions</span>
+                  <Badge variant={form.submissions_open ? 'success' : 'destructive'}>
+                    {form.submissions_open ? 'Open' : 'Closed'}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  When closed, the team leader portal shows submissions as closed and the
+                  API rejects new/edited project uploads.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.submissions_open}
+                onClick={() => updateField('submissions_open', !form.submissions_open)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  form.submissions_open ? 'bg-primary' : 'bg-muted'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                    form.submissions_open ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </CardContent>
         </Card>
 

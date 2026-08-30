@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { normalizeApiError } from '@/api/client'
+import { settingsApi } from '@/api/settingsApi'
 import {
   submissionApi,
   type Submission,
@@ -33,6 +34,7 @@ type PanelState =
 export function SubmissionPanel({ teamId }: { teamId: string }) {
   const [state, setState] = useState<PanelState>({ kind: 'loading' })
   const [editing, setEditing] = useState(false)
+  const [submissionsOpen, setSubmissionsOpen] = useState<boolean | null>(null)
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' })
@@ -48,6 +50,21 @@ export function SubmissionPanel({ teamId }: { teamId: string }) {
     const id = window.setTimeout(load, 0)
     return () => window.clearTimeout(id)
   }, [load])
+
+  useEffect(() => {
+    let cancelled = false
+    settingsApi
+      .publicSettings()
+      .then(({ submissions_open }) => {
+        if (!cancelled) setSubmissionsOpen(submissions_open)
+      })
+      .catch(() => {
+        if (!cancelled) setSubmissionsOpen(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   if (state.kind === 'loading') {
     return (
@@ -74,26 +91,35 @@ export function SubmissionPanel({ teamId }: { teamId: string }) {
   }
 
   const submission = state.submission
+  const closed = submissionsOpen === false
 
   return (
     <section aria-label="Project submission" className="border-t pt-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           Project submission
-          {submission && (
+          {closed && <Badge variant="destructive">Closed for submission</Badge>}
+          {!closed && submission && (
             <Badge variant={submission.locked ? 'info' : 'success'}>
               {submission.locked ? 'Locked — final' : 'Submitted'}
             </Badge>
           )}
         </h3>
-        {submission && !editing && !submission.locked && (
+        {submission && !editing && !submission.locked && !closed && (
           <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
             Edit
           </Button>
         )}
       </div>
 
-      {editing || !submission ? (
+      {closed && (
+        <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+          Project submissions are currently closed by the organizers. You can’t
+          submit or edit your project right now.
+        </div>
+      )}
+
+      {!closed && (editing || !submission ? (
         <SubmissionForm
           teamId={teamId}
           initial={
@@ -122,7 +148,7 @@ export function SubmissionPanel({ teamId }: { teamId: string }) {
           submission={submission}
           onWithdrawn={() => setState({ kind: 'ready', submission: null })}
         />
-      )}
+      ))}
     </section>
   )
 }

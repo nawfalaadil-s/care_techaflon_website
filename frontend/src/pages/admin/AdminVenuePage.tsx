@@ -6,6 +6,7 @@ import {
   venueApi,
   type VenueWithSeats,
 } from '@/api/venueApi'
+import { AdminFilterBar } from '@/components/admin/AdminFilterBar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -640,99 +641,125 @@ function BulkAllocationSection({
               </div>
 
               {/* Filters & options */}
-              <div className="rounded-md border bg-background p-3">
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  <Field label="Search" htmlFor="blk-search">
-                    <Input
-                      id="blk-search"
-                      type="search"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Team, ID, leader…"
-                    />
-                  </Field>
-                  <Field label="Theme">
-                    <Select
-                      value={theme}
-                      onChange={(e) => setTheme(e.target.value)}
-                    >
-                      <option value="all">All themes</option>
-                      {Object.entries(THEME_LABELS).map(([v, l]) => (
-                        <option key={v} value={v}>
-                          {l}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="Status">
-                    <Select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value)}
-                    >
-                      <option value="all">All statuses</option>
-                      {Object.entries(TEAM_STATUS_LABELS).map(([v, l]) => (
-                        <option key={v} value={v}>
-                          {l}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="Department">
-                    <Select
-                      value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
-                    >
-                      <option value="all">All departments</option>
-                      {[
-                        ...new Set(eligibleTeams.map((t) => t.leader_department)),
-                      ]
-                        .sort()
-                        .map((d) => (
-                          <option key={d} value={d}>
-                            {d}
-                          </option>
-                        ))}
-                    </Select>
-                  </Field>
-                </div>
-
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Field label="Allocation">
-                    <Select
-                      value={allocation}
-                      onChange={(e) =>
-                        setAllocation(e.target.value as 'all' | 'unassigned' | 'assigned')
+              <AdminFilterBar
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Team, ID, leader…"
+                resultCount={{ shown: filteredTeams.length, total: eligibleTeams.length }}
+                chips={[
+                  theme !== 'all'
+                    ? {
+                        label: `Theme: ${THEME_LABELS[theme] ?? theme}`,
+                        onRemove: () => setTheme('all'),
                       }
-                    >
-                      <option value="all">All teams</option>
-                      <option value="unassigned">
-                        Unassigned only ({unassignedCount})
-                      </option>
-                      <option value="assigned">
-                        Assigned elsewhere ({assignedElsewhereCount})
-                      </option>
-                    </Select>
-                  </Field>
-                  <Field label="Sort by">
-                    <Select
-                      value={sortBy}
-                      onChange={(e) =>
-                        setSortBy(e.target.value as 'name' | 'id' | 'department')
+                    : null,
+                  status !== 'all'
+                    ? {
+                        label: `Status: ${TEAM_STATUS_LABELS[status as keyof typeof TEAM_STATUS_LABELS] ?? status}`,
+                        onRemove: () => setStatus('all'),
                       }
-                    >
-                      <option value="name">Team name</option>
-                      <option value="id">Team ID</option>
-                      <option value="department">Department</option>
-                    </Select>
-                  </Field>
-                  <Button variant="outline" size="sm" onClick={resetFilters} className="mt-1">
+                    : null,
+                  department !== 'all'
+                    ? {
+                        label: `Department: ${department}`,
+                        onRemove: () => setDepartment('all'),
+                      }
+                    : null,
+                  allocation !== 'all'
+                    ? {
+                        label:
+                          allocation === 'unassigned' ? 'Allocation: Unassigned' : 'Allocation: Assigned',
+                        onRemove: () => setAllocation('all'),
+                      }
+                    : null,
+                  sortBy !== 'name'
+                    ? {
+                        label: `Sort: ${sortBy === 'id' ? 'Team ID' : 'Department'}`,
+                        onRemove: () => setSortBy('name'),
+                      }
+                    : null,
+                ].filter((c): c is NonNullable<typeof c> => c !== null)}
+                actions={
+                  <Button variant="outline" size="sm" onClick={resetFilters}>
                     Reset filters
                   </Button>
-                  <Badge variant="outline" className="mt-1">
-                    {filteredTeams.length} shown of {eligibleTeams.length}
-                  </Badge>
-                </div>
-              </div>
+                }
+              >
+                <Field label="Theme" htmlFor="blk-theme" className="mb-0">
+                  <Select
+                    id="blk-theme"
+                    value={theme}
+                    onChange={(e) => setTheme(e.target.value)}
+                  >
+                    <option value="all">All themes</option>
+                    {Object.entries(THEME_LABELS).map(([v, l]) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Status" htmlFor="blk-status" className="mb-0">
+                  <Select
+                    id="blk-status"
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                  >
+                    <option value="all">All statuses</option>
+                    {Object.entries(TEAM_STATUS_LABELS).map(([v, l]) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Department" htmlFor="blk-dept" className="mb-0">
+                  <Select
+                    id="blk-dept"
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                  >
+                    <option value="all">All departments</option>
+                    {[...new Set(eligibleTeams.map((t) => t.leader_department))]
+                      .sort()
+                      .map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                  </Select>
+                </Field>
+                <Field label="Allocation" htmlFor="blk-alloc" className="mb-0">
+                  <Select
+                    id="blk-alloc"
+                    value={allocation}
+                    onChange={(e) =>
+                      setAllocation(e.target.value as 'all' | 'unassigned' | 'assigned')
+                    }
+                  >
+                    <option value="all">All teams</option>
+                    <option value="unassigned">
+                      Unassigned only ({unassignedCount})
+                    </option>
+                    <option value="assigned">
+                      Assigned elsewhere ({assignedElsewhereCount})
+                    </option>
+                  </Select>
+                </Field>
+                <Field label="Sort by" htmlFor="blk-sort" className="mb-0">
+                  <Select
+                    id="blk-sort"
+                    value={sortBy}
+                    onChange={(e) =>
+                      setSortBy(e.target.value as 'name' | 'id' | 'department')
+                    }
+                  >
+                    <option value="name">Team name</option>
+                    <option value="id">Team ID</option>
+                    <option value="department">Department</option>
+                  </Select>
+                </Field>
+              </AdminFilterBar>
 
               <div className="space-y-1.5">
                 {filteredTeams.length === 0 ? (
