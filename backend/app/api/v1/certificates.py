@@ -759,9 +759,6 @@ def download_team_certificate_admin(
 
 
 @router.post("/{certificate_id}/send-team/{team_id}", response_model=dict)
-
-
-@router.post("/{certificate_id}/send-team/{team_id}", response_model=dict)
 def send_team_certificate(
     certificate_id: str,
     team_id: str,

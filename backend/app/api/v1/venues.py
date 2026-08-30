@@ -309,6 +309,7 @@ def update_team_seat_endpoint(
 
         seat.seat_number = payload.seat_number
         db.flush()
+        db.commit()
 
     return TeamSeatResponse.model_validate(seat)
 

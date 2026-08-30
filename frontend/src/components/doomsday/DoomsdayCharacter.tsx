@@ -43,7 +43,7 @@ export function DoomsdayCharacter() {
       transition={{ duration: 0.8, ease: 'easeOut' }}
       className="pointer-events-none fixed right-4 top-20 z-40 hidden lg:block"
     >
-      <div className="relative max-w-[220px] rounded-lg border border-danger/40 bg-surface-elevated/90 px-4 py-3 shadow-glow backdrop-blur-sm">
+      <div className="relative max-w-[220px] rounded-lg border border-danger/40 bg-surface-elevated/90 px-4 py-3 glow-danger backdrop-blur-sm">
         <p className="text-hud mb-1 text-[10px] uppercase tracking-widest text-danger-bright">
           Dr. Doom
         </p>

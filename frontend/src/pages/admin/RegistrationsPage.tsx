@@ -57,6 +57,12 @@ export default function RegistrationsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
 
+  // Clear bulk selection whenever filters change so bulk actions never
+  // apply to teams that are hidden by the current filters.
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [search, statusFilter, themeFilter, departmentFilter, yearFilter])
+
   // CSV export
   const [exporting, setExporting] = useState<'teams' | 'registration' | null>(null)
 

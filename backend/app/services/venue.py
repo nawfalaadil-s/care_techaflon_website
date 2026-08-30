@@ -19,6 +19,7 @@ def create_venue(db: Session, name: str, location: str, capacity: int, descripti
     )
     db.add(venue)
     db.flush()
+    db.commit()
     return venue
 
 
@@ -62,6 +63,7 @@ def update_venue(
     if description is not None:
         venue.description = description.strip() if description else None
     db.flush()
+    db.commit()
     return venue
 
 
@@ -69,6 +71,7 @@ def delete_venue(db: Session, venue: Venue) -> None:
     """Delete a venue. Cascades to team_seats via FK."""
     db.delete(venue)
     db.flush()
+    db.commit()
 
 
 def assign_team_to_seat(
@@ -118,6 +121,7 @@ def assign_team_to_seat(
     )
     db.add(seat)
     db.flush()
+    db.commit()
     return seat
 
 
@@ -127,6 +131,7 @@ def unassign_team_from_seat(db: Session, team_id: str) -> bool:
     if seat:
         db.delete(seat)
         db.flush()
+        db.commit()
         return True
     return False
 
@@ -182,6 +187,7 @@ def bulk_assign_teams_to_venue(
         created.append(seat)
 
     db.flush()
+    db.commit()
     return created
 
 
@@ -195,6 +201,7 @@ def bulk_unassign_teams(db: Session, team_ids: list[str]) -> int:
     for s in seats:
         db.delete(s)
     db.flush()
+    db.commit()
     return len(seats)
 
 

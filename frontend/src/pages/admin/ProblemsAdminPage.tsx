@@ -54,6 +54,12 @@ export default function ProblemsAdminPage() {
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | string>('all')
   const [publishedFilter, setPublishedFilter] = useState<'all' | 'live' | 'draft'>('all')
 
+  // Clear bulk selection whenever filters change so bulk delete never
+  // removes statements hidden by the current filters.
+  useEffect(() => {
+    setSelected(new Set())
+  }, [search, trackFilter, difficultyFilter, publishedFilter])
+
   const filteredStatements = useMemo(() => {
     const q = search.trim().toLowerCase()
     return statements.filter((s) => {
@@ -173,10 +179,13 @@ export default function ProblemsAdminPage() {
   }
 
   const allSelected =
-    statements.length > 0 && statements.every((s) => selected.has(s.id))
+    filteredStatements.length > 0 &&
+    filteredStatements.every((s) => selected.has(s.id))
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(statements.map((s) => s.id)))
+    setSelected(
+      allSelected ? new Set() : new Set(filteredStatements.map((s) => s.id)),
+    )
   }
 
   async function bulkDelete() {

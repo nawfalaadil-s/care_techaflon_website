@@ -431,6 +431,12 @@ function BulkAllocationSection({
   const [allocation, setAllocation] = useState<'all' | 'unassigned' | 'assigned'>('all')
   const [sortBy, setSortBy] = useState<'name' | 'id' | 'department'>('name')
 
+  // Clear team selection whenever filters change so assign never includes
+  // teams that are currently hidden by the applied filters.
+  useEffect(() => {
+    setSelectedTeamIds(new Set())
+  }, [search, theme, status, department, allocation, sortBy])
+
   const selectedVenueObj = venues.find((v) => v.id === selectedVenue)
 
   // Which teams are already assigned to which venue

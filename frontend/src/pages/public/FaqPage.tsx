@@ -113,7 +113,7 @@ const FAQ_CATEGORIES = [
     items: [
       {
         question: 'How do I access the Team Portal?',
-        answer: 'Approved Team Leaders can log in using their registered email and the provided initial password (Demo@123).',
+        answer: 'Approved Team Leaders can log in using their registered email and the provided initial password (Demo@1234).',
       },
       {
         question: 'Where can I see venue information?',
@@ -187,7 +187,7 @@ export default function FaqPage() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search questions ��� e.g. “team size”, “submission”…"
+            placeholder="Search questions — e.g. “team size”, “submission”…"
           />
           {query.trim() && (
             <p role="status" aria-live="polite" className="mt-2 text-xs text-muted-foreground">
