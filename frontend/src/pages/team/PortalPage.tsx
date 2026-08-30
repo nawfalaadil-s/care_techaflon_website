@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { normalizeApiError } from '@/api/client'
-import { certificatesApi, type MyCertificate, type MineParticipants } from '@/api/certificateApi'
+import { certificatesApi, type MineParticipants } from '@/api/certificateApi'
 import { teamApi, type TeamRecord } from '@/api/teamApi'
 import { Badge } from '@/components/ui/badge'
 import type { BadgeVariant } from '@/components/ui/badge'
@@ -281,7 +281,6 @@ function TeamCard({
 
         <SubmissionPanel teamId={team.id} />
 
-        <CertificateSection status={team.status} />
         <TeamMembersCertificatesSection status={team.status} />
       </CardContent>
     </Card>
@@ -289,14 +288,8 @@ function TeamCard({
 }
 
 // ---------------------------------------------------------------------------
-// Participation certificate (leader downloads once team is approved)
+// Certificate preview helper (opens a certificate HTML blob in a new tab)
 // ---------------------------------------------------------------------------
-
-type CertState =
-  | { kind: 'idle' }
-  | { kind: 'loading' }
-  | { kind: 'ready'; data: MyCertificate }
-  | { kind: 'error'; message: string }
 
 function openCertificateTab(html: string): void {
   const blob = new Blob([html], { type: 'text/html' })
@@ -308,112 +301,6 @@ function openCertificateTab(html: string): void {
     return
   }
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
-}
-
-function CertificateSection({ status }: { status: string }) {
-  const [state, setState] = useState<CertState>(
-    status === 'approved' ? { kind: 'loading' } : { kind: 'idle' },
-  )
-  const [downloading, setDownloading] = useState(false)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (status !== 'approved') return
-    let cancelled = false
-    void certificatesApi
-      .my()
-      .then((data) => {
-        if (!cancelled) setState({ kind: 'ready', data })
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setState({ kind: 'error', message: normalizeApiError(error).message })
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [status])
-
-  async function handleDownload(fallbackName?: string) {
-    setDownloading(true)
-    setDownloadError(null)
-    try {
-      await certificatesApi.downloadMine(fallbackName)
-    } catch (error) {
-      setDownloadError(normalizeApiError(error).message)
-    } finally {
-      setDownloading(false)
-    }
-  }
-
-  if (status !== 'approved') {
-    return (
-      <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-        Certificate available after team approval.
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-lg border border-border bg-muted/40 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h4 className="text-sm font-semibold">🏅 Participation certificate</h4>
-
-        {(state.kind === 'loading' || state.kind === 'idle') && (
-          <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-            <Spinner size="sm" /> Checking availability…
-          </span>
-        )}
-      </div>
-
-      {state.kind === 'ready' && state.data.available && (
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={downloading}
-            onClick={() => void handleDownload(state.data.download_filename ?? undefined)}
-          >
-            {downloading ? (
-              <>
-                <Spinner size="sm" /> Downloading…
-              </>
-            ) : (
-              'Download certificate'
-            )}
-          </Button>
-          {state.data.preview_html && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => openCertificateTab(state.data.preview_html ?? '')}
-            >
-              View & print
-            </Button>
-          )}
-        </div>
-      )}
-
-      {state.kind === 'error' && (
-        <p
-          role="alert"
-          className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive"
-        >
-          Couldn’t load certificate info. {state.message}
-        </p>
-      )}
-
-      {downloadError && (
-        <p
-          role="alert"
-          className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive"
-        >
-          Download failed. {downloadError}
-        </p>
-      )}
-    </div>
-  )
 }
 
 // ---------------------------------------------------------------------------
