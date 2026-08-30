@@ -32,6 +32,11 @@ DEFAULTS: dict[str, object] = {
     # When true, every newly registered team is auto-allocated a unique
     # problem statement (matched by theme) on the spot.
     "auto_allocate_enabled": False,
+    # Master switch for the LEADER/MEMBER portal certificate section.
+    # Certificates show in portals only when this is on — team approval and
+    # an active certificate must also hold. Admin upload/email tooling is
+    # unaffected and stays usable while the portal section is hidden.
+    "certificates_visible": False,
 }
 
 _SETTING_KEYS = frozenset(DEFAULTS)
@@ -52,6 +57,14 @@ def is_registration_open(db: "Session") -> bool:
     row = db.get(SiteSetting, "registration_open")
     if row is None:
         return bool(DEFAULTS["registration_open"])
+    return bool(row.value)
+
+
+def are_certificates_visible(db: "Session") -> bool:
+    """Cheap portal-switch check used by the certificate endpoints."""
+    row = db.get(SiteSetting, "certificates_visible")
+    if row is None:
+        return bool(DEFAULTS["certificates_visible"])
     return bool(row.value)
 
 

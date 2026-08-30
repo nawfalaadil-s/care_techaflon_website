@@ -31,43 +31,44 @@ except ImportError:  # pragma: no cover
     PILLOW_AVAILABLE = False
 
 # Rendering style for the official TechAFlon template (organizer spec):
-#   - name in the bundled EB Garamond serif typeface (professional look
-#     matching the template's body text), green ink
-#   - font size 42pt at A4 width (842pt), scaled proportionally
-#   - solid white background band drawn behind the name for readability
-#   - positioned on the template's blank name line (~61.5% height)
+#   - name in Times New Roman (classic certificate serif), deep green ink
+#   - font size 50 (Pillow units) at the reference canvas width (1492px, the
+#     native size of cer_final.png), scaled proportionally for other sizes
+#   - name rendered in CAPITAL LETTERS
+#   - NO background band — the name sits directly on the template artwork
+#   - positioned on the template's blank name area (~56% height, just above
+#     the horizontal rule at ~62% on cer_final.png)
 #   - no subtitle — the rest of the template artwork stays untouched
-_NAME_PT_SIZE = 42
-_A4_LANDSCAPE_WIDTH_PT = 842
-_NAME_CENTER_RATIO = 0.615
-_NAME_CENTER_X_RATIO = 0.47  # template name-line centre, clear of the medal
-_NAME_MAX_WIDTH_RATIO = 0.46  # right edge stops well before the gold medal
+_NAME_FONT_SIZE = 50
+_REF_CANVAS_WIDTH = 1492  # native width of cer_final.png
+_NAME_CENTER_RATIO = 0.56  # vertical centre of the blank name area
+_NAME_CENTER_X_RATIO = 0.46  # centre of the printed name rule, clear of the medal
+_NAME_MAX_WIDTH_RATIO = 0.44  # keep the name within the printed rule width
 _NAME_INK = (27, 94, 57, 255)  # deep TechAFlon green
-_NAME_BG = (255, 255, 255, 255)  # solid white backdrop behind the text
-_NAME_BG_PADDING = 14  # px of white margin around the text block (at A4 scale)
 
 _BUNDLED_FONT = (
     Path(__file__).resolve().parent.parent / "assets" / "fonts" / "EBGaramond.ttf"
 )
 
+# Times New Roman first (organizer requirement). Liberation Serif is kept as
+# the Linux fallback because it is metric-compatible with Times New Roman, so
+# Docker/Render deployments render the exact same layout.
 _FONT_CANDIDATES = (
-    # Bundled event typeface (preferred)
-    str(_BUNDLED_FONT),
-    # Previous bundled typefaces (fallbacks)
-    str(Path(__file__).resolve().parent.parent / "assets" / "fonts" / "Anaktoria.ttf"),
-    # Windows professional serifs
-    r"C:\Windows\Fonts\georgiab.ttf",
-    r"C:\Windows\Fonts\timesbd.ttf",
+    # Windows — Times New Roman
     r"C:\Windows\Fonts\times.ttf",
-    # Linux (common in Docker images such as Render's)
-    "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
-    "/usr/share/fonts/TTF/DejaVuSerif-Bold.ttf",
+    r"C:\Windows\Fonts\timesbd.ttf",
+    # Linux (Docker images such as Render's) — metric-compatible substitute
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+    "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman.ttf",
+    "/usr/share/fonts/TTF/LiberationSerif-Regular.ttf",
     # macOS
-    "/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf",
-    "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
-    r"C:\Windows\Fonts\arialbd.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
+    "/System/Library/Fonts/Supplemental/Liberation Serif.ttf",
+    # Bundled event typeface (last-resort serif fallback)
+    str(_BUNDLED_FONT),
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+    r"C:\Windows\Fonts\georgia.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 )
 
 
@@ -78,8 +79,10 @@ def _load_font(size: int):
             font = ImageFont.truetype(candidate, size=size)
         except OSError:
             continue
-        # EB Garamond ships as a variable font; nudge it to a confident
-        # semibold weight so the name reads as engraved, not thin.
+        # Static fonts such as Times New Roman do not support named
+        # variations and raise here; variable-font fallbacks (e.g. the
+        # bundled EB Garamond) get nudged to a confident semibold weight
+        # so the name reads as engraved, not thin.
         try:
             font.set_variation_by_name("SemiBold")
         except (OSError, ValueError):
@@ -131,10 +134,12 @@ def compose_certificate_image(
 ) -> tuple[bytes, str]:
     """Burn ``name`` into the uploaded template image.
 
-    The name is rendered in the bundled EB Garamond serif typeface, green ink
-    on a solid white backdrop, at 42pt (scaled to the A4 canvas width) on the
-    template's blank name line. No subtitle is drawn. ``team_id``/``subtitle``
-    are accepted for caller compatibility but intentionally not rendered.
+    The name is rendered in Times New Roman (metric-compatible fallbacks on
+    non-Windows platforms), deep green ink, in CAPITAL LETTERS at size 50
+    (scaled to the reference canvas width) on the template's blank name line —
+    directly on the artwork with no background band. No subtitle is drawn.
+    ``team_id``/``subtitle`` are accepted for caller compatibility but
+    intentionally not rendered.
 
     Returns ``(png_bytes, "image/png")`` so downstream consumers (downloads,
     email attachments, portal previews) all share one canonical artifact.
@@ -154,35 +159,27 @@ def compose_certificate_image(
     except Exception as exc:  # noqa: BLE001 - any decoder failure is invalid input
         raise ValueError("template bytes are not a decodable image") from exc
 
+    # Organizer spec: names always appear in capital letters.
+    display_name = " ".join(name.strip().upper().split())
+
     width, height = source.size
     composed = source.convert("RGBA")
 
     draw = ImageDraw.Draw(composed)
-    # 42pt at A4 landscape width, scaled proportionally for other canvases.
-    name_font_size = max(18, int(_NAME_PT_SIZE * width / _A4_LANDSCAPE_WIDTH_PT))
+    # Size 50 at the reference canvas width (cer_final.png native size),
+    # scaled proportionally so other template resolutions look identical.
+    name_font_size = max(14, round(_NAME_FONT_SIZE * width / _REF_CANVAS_WIDTH))
     name_font = _load_font(name_font_size)
-    # Center on the template's name-line (slightly left of canvas centre) and
-    # cap the width so names never reach the gold medal on the right.
+    # Center on the template's name rule (slightly left of canvas centre) and
+    # cap the width so names stay within the printed rule, clear of the medal.
     center_x = width * _NAME_CENTER_X_RATIO
     max_text_width = int(width * _NAME_MAX_WIDTH_RATIO)
-    lines = _wrap_name(draw, name, max_text_width, name_font)
+    lines = _wrap_name(draw, display_name, max_text_width, name_font)
 
     line_height = name_font_size + max(6, name_font_size // 5)
     block_height = line_height * len(lines)
     y_center = int(height * _NAME_CENTER_RATIO)
     name_top = y_center - block_height // 2
-
-    # Solid white backdrop sized to the text block so template artwork never
-    # bleeds through behind the name (padding scaled with the canvas).
-    pad = max(6, int(_NAME_BG_PADDING * width / _A4_LANDSCAPE_WIDTH_PT))
-    widest = max(draw.textbbox((0, 0), line, font=name_font)[2] for line in lines)
-    bg_box = (
-        int(center_x - widest / 2 - pad),
-        name_top - pad,
-        int(center_x + widest / 2 + pad),
-        name_top + block_height + pad,
-    )
-    draw.rectangle(bg_box, fill=_NAME_BG)
 
     y = name_top
     for line in lines:

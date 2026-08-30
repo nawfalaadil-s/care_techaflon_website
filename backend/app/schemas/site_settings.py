@@ -17,6 +17,9 @@ class SiteSettingsRead(BaseModel):
     contact_email: str
     announcement: str
     auto_allocate_enabled: bool = False
+    # Master portal switch: certificates appear to leaders/members only when
+    # the organizer turns this on (approval + active certificate still apply).
+    certificates_visible: bool = False
 
 
 class SiteSettingsUpdate(BaseModel):
@@ -30,6 +33,7 @@ class SiteSettingsUpdate(BaseModel):
     contact_email: str | None = Field(default=None, max_length=320)
     announcement: str | None = Field(default=None, max_length=500)
     auto_allocate_enabled: bool | None = None
+    certificates_visible: bool | None = None
 
     @field_validator("registration_deadline")
     @classmethod

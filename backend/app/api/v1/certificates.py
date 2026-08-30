@@ -29,6 +29,7 @@ from app.models.team import Team
 from app.models.user import User
 from app.services import certificate_art, email
 from app.services.email import certificate_already_sent, resend_message
+from app.services.site_settings import are_certificates_visible
 from app.services.team import get_team_for_leader
 from app.workers.email_tasks import task_send_team_certificates
 
@@ -213,11 +214,18 @@ def my_certificate(
         "status": team.status,
     }
 
+    certificates_released = are_certificates_visible(db)
     certificate = _active_certificate(db)
-    available = team.status == "approved" and certificate is not None
+    available = (
+        certificates_released
+        and team.status == "approved"
+        and certificate is not None
+    )
     reason: str | None = None
     if team.status != "approved":
         reason = "team_not_approved"
+    elif not certificates_released:
+        reason = "certificates_disabled"
     elif certificate is None:
         reason = "no_active_certificate"
 
@@ -268,6 +276,11 @@ def download_my_certificate(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Your team has not been approved yet.",
         )
+    if not are_certificates_visible(db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Certificates have not been released yet.",
+        )
     certificate = _active_certificate(db)
     if certificate is None:
         raise HTTPException(
@@ -307,15 +320,22 @@ def my_team_participants(
             detail="No team found for your account.",
         )
 
+    certificates_released = are_certificates_visible(db)
     certificate = _active_certificate(db)
     approved = team.status == "approved"
-    available = approved and certificate is not None
+    available = certificates_released and approved and certificate is not None
 
     if not available or certificate is None:
+        if not approved:
+            reason = "team_not_approved"
+        elif not certificates_released:
+            reason = "certificates_disabled"
+        else:
+            reason = "no_active_certificate"
         return {
             "team": {"team_id": team.team_id, "team_name": team.team_name, "status": team.status},
             "available": False,
-            "reason": "team_not_approved" if not approved else "no_active_certificate",
+            "reason": reason,
             "image_composition_enabled": False,
             "participants": [],
         }
@@ -371,6 +391,10 @@ def download_participant_image(
     if team.status != "approved":
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, detail="Your team has not been approved yet."
+        )
+    if not are_certificates_visible(db):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, detail="Certificates have not been released yet."
         )
 
     requested = email_query.strip().lower()
@@ -661,6 +685,80 @@ def approved_teams_status(
         "failed_mail_count": metrics["failed"],
         "teams": teams,
     }
+@router.get("/teams/{team_id}/download")
+def download_team_certificate_admin(
+    team_id: str,
+    email_query: str | None = Query(default=None, alias="email"),
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_admin),
+) -> Response:
+    """Download one team's personalized certificate file (admin only).
+
+    Defaults to the team leader's certificate; pass ``?email=`` to fetch a
+    specific participant's. Mirrors the leader-portal entitlement rules —
+    the team must be approved and an active certificate must exist — and is
+    fully independent of email delivery.
+    """
+    _ = current
+    team = db.scalar(select(Team).where(Team.team_id == team_id))
+    if team is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Team not found.")
+    if team.status != "approved":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="Certificates are only available for approved teams.",
+        )
+
+    certificate = _active_certificate(db)
+    if certificate is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail="No certificate is available right now."
+        )
+
+    participants = {
+        address.strip().lower(): name for address, name in _team_recipients(team)
+    }
+    requested = (email_query or team.leader_email).strip().lower()
+    if requested not in participants:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="That participant does not belong to this team.",
+        )
+
+    if not certificate_art.PILLOW_AVAILABLE:
+        raise HTTPException(
+            status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Personalized image rendering requires Pillow on the server.",
+        )
+    if not _is_image_template(certificate.content_type):
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="The active template is not an image; personalized PNGs "
+            "cannot be composed from PDF templates.",
+        )
+
+    display_name = participants[requested] or "Participant"
+    try:
+        png_bytes, media_type = certificate_art.compose_certificate_image(
+            certificate.data,
+            certificate.content_type,
+            name=display_name,
+            team_id=team.team_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+    filename = f"{team.team_id}-{certificate_art.slugify_filename(display_name)}-certificate.png"
+    return Response(
+        content=png_bytes,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/{certificate_id}/send-team/{team_id}", response_model=dict)
 
 
 @router.post("/{certificate_id}/send-team/{team_id}", response_model=dict)

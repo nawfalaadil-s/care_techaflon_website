@@ -115,6 +115,7 @@ export interface MyCertificateTeam {
 export type MyCertificateReason =
   | 'team_not_approved'
   | 'no_active_certificate'
+  | 'certificates_disabled'
   | null
 
 export interface MyCertificate {
@@ -291,6 +292,31 @@ export const certificatesApi = {
     const disposition = (response.headers?.['content-disposition'] as string | undefined) ?? ''
     const match = /filename="?([^";]+)"?/i.exec(disposition)
     const filename = match?.[1] ?? `${email.split('@')[0]}-certificate.png`
+    saveBlob(response.data, filename)
+  },
+
+  // -------------------------------------------------------------------------
+  // Admin: download certificates for any approved team
+  // -------------------------------------------------------------------------
+
+  /**
+   * Download one team's personalized certificate (leader by default, or a
+   * specific participant via ``email``). Backend composes the PNG from the
+   * active template; Content-Disposition carries a friendly filename.
+   */
+  async downloadTeamCertificate(
+    teamId: string,
+    email?: string,
+    fallbackName?: string,
+  ): Promise<void> {
+    const query = email ? `?email=${encodeURIComponent(email)}` : ''
+    const response = await apiClient.get<Blob>(
+      `/certificates/teams/${encodeURIComponent(teamId)}/download${query}`,
+      { responseType: 'blob' },
+    )
+    const disposition = (response.headers?.['content-disposition'] as string | undefined) ?? ''
+    const match = /filename="?([^";]+)"?/i.exec(disposition)
+    const filename = match?.[1] ?? fallbackName ?? `${teamId}-certificate.png`
     saveBlob(response.data, filename)
   },
 }

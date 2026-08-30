@@ -20,6 +20,7 @@ const fallbackSettings: SiteSettings = {
   registration_deadline: null,
   contact_email: '',
   announcement: '',
+  certificates_visible: false,
 }
 
 let sharedFetch: Promise<SiteSettings> | null = null

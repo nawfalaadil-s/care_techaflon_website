@@ -11,6 +11,7 @@ import {
   type PreviewHtml,
 } from '@/api/certificateApi'
 import { normalizeApiError } from '@/api/client'
+import { adminSettingsApi } from '@/api/settingsApi'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -53,6 +54,9 @@ export default function AdminCertificatesPage() {
   const [resending, setResending] = useState(false)
   const [sendingTeamId, setSendingTeamId] = useState<string | null>(null)
   const [activatingId, setActivatingId] = useState<string | null>(null)
+  const [downloadingCertKey, setDownloadingCertKey] = useState<string | null>(null)
+  const [certificatesVisible, setCertificatesVisible] = useState<boolean | null>(null)
+  const [togglingVisibility, setTogglingVisibility] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -106,13 +110,15 @@ export default function AdminCertificatesPage() {
       certificatesApi.deliverySummary(),
       certificatesApi.approvedTeams(),
       certificatesApi.history(),
-    ]).then(([cert, emailData, summaryData, teamsData, historyData]) => {
+      adminSettingsApi.get(),
+    ]).then(([cert, emailData, summaryData, teamsData, historyData, settingsData]) => {
       if (cancelled) return
       setCertificate(cert)
       setEmailStatus(emailData)
       setSummary(summaryData)
       setTeamsStatus(teamsData)
       setHistory(historyData.items)
+      setCertificatesVisible(settingsData.certificates_visible)
       setState({ kind: 'ready' })
     }).catch((error) => {
       if (!cancelled) {
@@ -221,6 +227,52 @@ export default function AdminCertificatesPage() {
       setNotice({ tone: 'error', text: normalizeApiError(error).message })
     } finally {
       setSendingTeamId(null)
+    }
+  }
+  async function handleDownloadTeamCertificate(teamId: string, email: string, name: string) {
+    const key = `${teamId}:${email}`
+    setDownloadingCertKey(key)
+    setNotice(null)
+    try {
+      await certificatesApi.downloadTeamCertificate(
+        teamId,
+        email,
+        `${name || email.split('@')[0]}-certificate.png`,
+      )
+      setNotice({ tone: 'success', text: `Certificate for ${name || email} downloaded.` })
+    } catch (error) {
+      setNotice({ tone: 'error', text: normalizeApiError(error).message })
+    } finally {
+      setDownloadingCertKey(null)
+    }
+  }
+
+  async function handleToggleCertificatesVisible() {
+    if (certificatesVisible === null) return
+    const enabling = !certificatesVisible
+    const confirmed = window.confirm(
+      enabling
+        ? 'Show certificates in every approved team’s portal? Leaders and members will immediately see and be able to download their certificates (team approval and an active certificate are still required).'
+        : 'Hide certificates from team portals? Leaders and members will no longer see the certificate section until you turn this back on. Admin tools keep working.',
+    )
+    if (!confirmed) return
+    setTogglingVisibility(true)
+    setNotice(null)
+    try {
+      const updated = await adminSettingsApi.patch({
+        certificates_visible: enabling,
+      })
+      setCertificatesVisible(updated.certificates_visible)
+      setNotice({
+        tone: 'success',
+        text: enabling
+          ? 'Certificates are now visible in team portals.'
+          : 'Certificates hidden from team portals.',
+      })
+    } catch (error) {
+      setNotice({ tone: 'error', text: normalizeApiError(error).message })
+    } finally {
+      setTogglingVisibility(false)
     }
   }
 
@@ -414,6 +466,32 @@ export default function AdminCertificatesPage() {
             />
           ) : null}
 
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Certificates visible in team portals</p>
+              <p className="text-xs text-muted-foreground">
+                Master switch for leaders &amp; members. When hidden, the portal
+                certificate section disappears — uploads, “Send All Certificates”
+                and the downloads on this page keep working. Approval and an
+                active certificate are still required on top of this switch.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Badge variant={certificatesVisible ? 'success' : 'outline'}>
+                {certificatesVisible === null ? '…' : certificatesVisible ? 'Shown' : 'Hidden'}
+              </Badge>
+              <Button
+                size="sm"
+                variant={certificatesVisible ? 'destructive' : 'secondary'}
+                disabled={togglingVisibility || certificatesVisible === null}
+                onClick={() => void handleToggleCertificatesVisible()}
+              >
+                {togglingVisibility ? <Spinner size="sm" /> : null}
+                {certificatesVisible ? 'Hide from portals' : 'Show in portals'}
+              </Button>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -487,6 +565,10 @@ export default function AdminCertificatesPage() {
         hasActiveCert={active}
         sendingTeamId={sendingTeamId}
         onSendTeam={(teamId, teamName) => void handleSendTeam(teamId, teamName)}
+        downloadingKey={downloadingCertKey}
+        onDownloadRecipient={(teamId, email, name) =>
+          void handleDownloadTeamCertificate(teamId, email, name)
+        }
       />
 
       <HistoryCard
@@ -610,11 +692,15 @@ function ApprovedTeamsCard({
   hasActiveCert,
   sendingTeamId,
   onSendTeam,
+  downloadingKey,
+  onDownloadRecipient,
 }: {
   teamsStatus: ApprovedTeamsStatus | null
   hasActiveCert: boolean
   sendingTeamId: string | null
   onSendTeam: (teamId: string, teamName: string) => void
+  downloadingKey: string | null
+  onDownloadRecipient: (teamId: string, email: string, name: string) => void
 }) {
   const teams: ApprovedTeam[] = teamsStatus?.teams ?? []
 
@@ -688,19 +774,42 @@ function ApprovedTeamsCard({
                   </div>
 
                   <ul className="mt-3 grid gap-1 sm:grid-cols-2">
-                    {team.recipients.map((r) => (
-                      <li
-                        key={r.email}
-                        className="flex items-center justify-between gap-2 rounded-md border border-border bg-background/60 px-2 py-1 text-xs"
-                      >
-                        <span className="min-w-0 truncate" title={r.email}>
-                          {r.name || r.email}
-                        </span>
-                        <Badge variant={RECIPIENT_VARIANT[r.status] ?? 'outline'}>
-                          {r.status}
-                        </Badge>
-                      </li>
-                    ))}
+                    {team.recipients.map((r) => {
+                      const downloadKey = `${team.team_id}:${r.email}`
+                      return (
+                        <li
+                          key={r.email}
+                          className="flex items-center justify-between gap-2 rounded-md border border-border bg-background/60 px-2 py-1 text-xs"
+                        >
+                          <span className="min-w-0 truncate" title={r.email}>
+                            {r.name || r.email}
+                          </span>
+                          <span className="flex shrink-0 items-center gap-1">
+                            <Badge variant={RECIPIENT_VARIANT[r.status] ?? 'outline'}>
+                              {r.status}
+                            </Badge>
+                            {hasActiveCert && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-xs"
+                                title={`Download ${r.name || r.email}'s certificate`}
+                                disabled={downloadingKey === downloadKey}
+                                onClick={() =>
+                                  onDownloadRecipient(team.team_id, r.email, r.name)
+                                }
+                              >
+                                {downloadingKey === downloadKey ? (
+                                  <Spinner size="sm" />
+                                ) : (
+                                  'Download'
+                                )}
+                              </Button>
+                            )}
+                          </span>
+                        </li>
+                      )
+                    })}
                   </ul>
                 </li>
               )

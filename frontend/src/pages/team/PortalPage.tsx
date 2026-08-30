@@ -393,7 +393,9 @@ function CertificateSection({ status }: { status: string }) {
         <p className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
           {state.data.reason === 'no_active_certificate'
             ? 'Organizers haven’t published the final certificate design yet — check back soon.'
-            : 'Your certificate becomes available after approval.'}
+            : state.data.reason === 'certificates_disabled'
+              ? 'Certificates haven’t been released yet. Organizers will make them available soon.'
+              : 'Your certificate becomes available after approval.'}
         </p>
       )}
 

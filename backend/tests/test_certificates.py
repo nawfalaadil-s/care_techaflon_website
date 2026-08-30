@@ -92,6 +92,16 @@ def _approve(admin: dict, team_id: str) -> None:
     assert response.status_code == 200, response.text
 
 
+def _show_certificates(admin: dict, enabled: bool = True) -> None:
+    """Master portal switch — certificates show to leaders only when on."""
+    response = client.patch(
+        "/api/settings",
+        json={"certificates_visible": enabled},
+        headers=admin,
+    )
+    assert response.status_code == 200, response.text
+
+
 def _award_mails(to_email: str) -> list[EmailMessage]:
     db = SessionLocal()
     try:
@@ -187,6 +197,7 @@ def test_upload_replaces_active_certificate() -> None:
 def test_approval_makes_certificate_available_but_does_not_email() -> None:
     """Approval unlocks portal availability but never queues a certificate email."""
     admin = _make_admin()
+    _show_certificates(admin)
     cert = _upload_certificate(admin)
     team = _create_team("CertSquad")
 
@@ -378,6 +389,7 @@ def test_my_certificate_returns_404_without_team() -> None:
 
 def test_leader_can_download_certificate_after_approval() -> None:
     admin = _make_admin()
+    _show_certificates(admin)
     cert = _upload_certificate(admin)
     team = _create_team("CertLeaders")
     leader = _leader_headers(team["leader_email"])
@@ -419,9 +431,11 @@ def test_leader_can_download_certificate_after_approval() -> None:
 
 def test_leader_download_404_when_no_active_certificate() -> None:
     admin = _make_admin()
+    _show_certificates(admin)
+    # Scenario requires NO active certificate — drop any earlier upload.
+    assert client.delete("/api/certificates/current", headers=admin).status_code == 204
     team = _create_team("LateCert")
     _approve(admin, team["id"])
-    assert client.delete("/api/certificates/current", headers=admin).status_code == 204
 
     leader = _leader_headers(team["leader_email"])
     mine = client.get("/api/certificates/mine", headers=leader)
@@ -433,6 +447,104 @@ def test_leader_download_404_when_no_active_certificate() -> None:
     download = client.get("/api/certificates/mine/download", headers=leader)
     assert download.status_code == 404
     assert "No certificate is available" in download.json()["detail"]
+
+
+def _upload_png_certificate(admin: dict) -> dict:
+    """Upload a real (composable) PNG template as the active certificate."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (900, 640), "white").save(buffer, format="PNG")
+    png_bytes = buffer.getvalue()
+    response = client.post(
+        "/api/certificates/upload",
+        params={"filename": "award.png"},
+        content=png_bytes,
+        headers={**admin, "Content-Type": "image/png"},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_admin_can_download_team_certificate() -> None:
+    admin = _make_admin()
+    _upload_png_certificate(admin)
+    team = _create_team("AdminDl")
+    _approve(admin, team["id"])
+
+    # Leader's certificate by default.
+    leader_dl = client.get(
+        f"/api/certificates/teams/{team['team_id']}/download", headers=admin
+    )
+    assert leader_dl.status_code == 200, leader_dl.text
+    assert leader_dl.headers["Content-Type"] == "image/png"
+    disposition = leader_dl.headers["Content-Disposition"]
+    assert "attachment" in disposition
+    assert team["team_id"] in disposition
+    assert "Cert-Leader-certificate.png" in disposition
+    assert leader_dl.content.startswith(b"\x89PNG")
+
+    # A specific participant via ?email=.
+    member = team["members"][0]
+    member_dl = client.get(
+        f"/api/certificates/teams/{team['team_id']}/download",
+        params={"email": member["email"]},
+        headers=admin,
+    )
+    assert member_dl.status_code == 200, member_dl.text
+    assert "Member-One-certificate.png" in member_dl.headers["Content-Disposition"]
+
+    # Participants outside the team are rejected.
+    stranger = client.get(
+        f"/api/certificates/teams/{team['team_id']}/download",
+        params={"email": _unique("stranger")},
+        headers=admin,
+    )
+    assert stranger.status_code == 403
+
+
+def test_admin_team_download_requires_approval_active_cert_and_admin() -> None:
+    admin = _make_admin()
+    _upload_png_certificate(admin)
+    team = _create_team("AdminDlGuard")
+
+    # Pending team -> 403 even with an active certificate.
+    pending = client.get(
+        f"/api/certificates/teams/{team['team_id']}/download", headers=admin
+    )
+    assert pending.status_code == 403
+
+    _approve(admin, team["id"])
+
+    # Non-admin callers are rejected.
+    outsider = client.post(
+        "/api/auth/register",
+        json={"email": _unique("cert-outsider"), "full_name": "Out Sider", "password": PASSWORD},
+    )
+    assert outsider.status_code == 201, outsider.text
+    outsider_headers = {"Authorization": f"Bearer {outsider.json()['access_token']}"}
+    forbidden = client.get(
+        f"/api/certificates/teams/{team['team_id']}/download", headers=outsider_headers
+    )
+    assert forbidden.status_code == 403
+
+    # Unknown team -> 404.
+    missing = client.get(
+        "/api/certificates/teams/TFLN-0000-000/download", headers=admin
+    )
+    assert missing.status_code == 404
+
+    # No active certificate -> 404.
+    assert client.delete("/api/certificates/current", headers=admin).status_code == 204
+    no_cert = client.get(
+        f"/api/certificates/teams/{team['team_id']}/download", headers=admin
+    )
+    assert no_cert.status_code == 404
+
+    # Restore an active certificate for any subsequent suites.
+    _upload_certificate(admin)
 
 
 # ---------------------------------------------------------------------------
@@ -527,3 +639,75 @@ def test_email_status_reflects_log_mode_and_active_cert() -> None:
     _upload_certificate(admin)
     status = client.get("/api/certificates/email-status", headers=admin).json()
     assert status["certificate_active"] is True
+
+
+# ---------------------------------------------------------------------------
+# Portal visibility master switch (admin-controlled site setting)
+# ---------------------------------------------------------------------------
+
+
+def test_certificate_visibility_toggle_gates_portal() -> None:
+    """Certificates appear in leader/member portals ONLY when the admin
+    turns the ``certificates_visible`` setting on — approval and an active
+    certificate are still required, and admin tooling keeps working while
+    the portal section is hidden."""
+    admin = _make_admin()
+    _show_certificates(admin, enabled=False)
+    _upload_png_certificate(admin)
+    team = _create_team("CertGate")
+    _approve(admin, team["id"])
+    leader = _leader_headers(team["leader_email"])
+
+    # Toggle OFF: approved team + active certificate, yet the portal hides it.
+    mine = client.get("/api/certificates/mine", headers=leader)
+    assert mine.status_code == 200, mine.text
+    payload = mine.json()
+    assert payload["available"] is False
+    assert payload["reason"] == "certificates_disabled"
+    assert payload["preview_html"] is None
+
+    blocked = client.get("/api/certificates/mine/download", headers=leader)
+    assert blocked.status_code == 403
+    assert "not been released" in blocked.json()["detail"]
+
+    participants = client.get("/api/certificates/mine/participants", headers=leader)
+    assert participants.status_code == 200, participants.text
+    assert participants.json()["available"] is False
+    assert participants.json()["reason"] == "certificates_disabled"
+    assert participants.json()["participants"] == []
+
+    member_image = client.get(
+        "/api/certificates/mine/participant-image",
+        params={"email": team["leader_email"]},
+        headers=leader,
+    )
+    assert member_image.status_code == 403
+
+    # Toggle ON: the exact same state becomes fully available.
+    _show_certificates(admin, enabled=True)
+
+    mine = client.get("/api/certificates/mine", headers=leader)
+    assert mine.status_code == 200
+    payload = mine.json()
+    assert payload["available"] is True
+    assert payload["reason"] is None
+
+    download = client.get("/api/certificates/mine/download", headers=leader)
+    assert download.status_code == 200
+    assert download.content.startswith(b"\x89PNG")
+
+    participants = client.get("/api/certificates/mine/participants", headers=leader)
+    assert participants.status_code == 200
+    body = participants.json()
+    assert body["available"] is True
+    assert len(body["participants"]) == 3
+
+    # Admin tooling is unaffected by the portal switch (upload already done;
+    # admin team download works with the portal section hidden or shown).
+    admin_dl = client.get(
+        f"/api/certificates/teams/{team['team_id']}/download", headers=admin
+    )
+    assert admin_dl.status_code == 200
+
+    # Reset to the default (hidden) so other suites start pristine.
+    _show_certificates(admin, enabled=False)

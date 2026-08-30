@@ -7,6 +7,8 @@ export interface SiteSettings {
   registration_deadline: string | null
   contact_email: string
   announcement: string
+  /** Master portal switch — certificates show to leaders only when true. */
+  certificates_visible: boolean
 }
 
 export type SiteSettingsUpdate = Partial<SiteSettings>

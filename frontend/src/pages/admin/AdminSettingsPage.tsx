@@ -24,6 +24,7 @@ export default function AdminSettingsPage() {
     registration_deadline: null,
     contact_email: '',
     announcement: '',
+    certificates_visible: false,
   })
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
