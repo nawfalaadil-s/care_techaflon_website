@@ -35,6 +35,7 @@ function calculateTimeLeft(target: Date) {
     hours: Math.floor(diff / 3_600_000) % 24,
     minutes: Math.floor(diff / 60_000) % 60,
     seconds: Math.floor(diff / 1_000) % 60,
+    done: target.getTime() <= Date.now(),
   }
 }
 
@@ -58,6 +59,27 @@ function HeroCountdown() {
     { label: 'MINUTES', value: t.minutes },
     { label: 'SECONDS', value: t.seconds },
   ]
+
+  if (t.done) {
+    return (
+      <div className="inline-flex flex-col items-start gap-3">
+        <p className="text-hud flex items-center gap-2 text-danger-bright">
+          <span
+            aria-hidden="true"
+            className="animate-pulse h-2 w-2 rounded-full bg-danger-bright"
+          />
+          HACKATHON LIVE
+        </p>
+        <LinkButton
+          to="/portal"
+          size="lg"
+          className="glow-reactor w-full sm:w-auto"
+        >
+          ENTER THE PORTAL
+        </LinkButton>
+      </div>
+    )
+  }
 
   return (
     <div className="inline-flex flex-col items-start gap-3">
