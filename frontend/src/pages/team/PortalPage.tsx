@@ -315,8 +315,10 @@ function CertificateSection({ status }: { status: string }) {
   if (status !== 'approved') {
     return (
       <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-        🏅 <span className="font-medium">Participation certificate</span> —
-        unlocks here as soon as organizers approve your team.
+        <p className="font-medium">🏅 Participation certificate</p>
+        <p className="mt-1 text-xs">
+          Status: Certificate will be available after team approval.
+        </p>
       </div>
     )
   }
@@ -327,7 +329,9 @@ function CertificateSection({ status }: { status: string }) {
         <div>
           <h4 className="text-sm font-semibold">🏅 Participation certificate</h4>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Same award file every participant of your team receives by email.
+            Your team has been approved — your participation certificate is
+            available now. Download or print it any time from this portal; you
+            never need to wait for email.
           </p>
         </div>
 
@@ -338,7 +342,26 @@ function CertificateSection({ status }: { status: string }) {
         )}
 
         {state.kind === 'ready' && state.data.available && (
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <Badge variant="success">Status: Available</Badge>
+        )}
+      </div>
+
+      {state.kind === 'ready' && state.data.available && (
+        <>
+          <dl className="mt-3 space-y-1 rounded-md border border-border bg-background/60 p-3 text-xs">
+            <div className="flex items-start justify-between gap-4">
+              <dt className="text-muted-foreground">Status</dt>
+              <dd className="font-medium text-success">Available</dd>
+            </div>
+            <div className="flex items-start justify-between gap-4">
+              <dt className="text-muted-foreground">Certificate</dt>
+              <dd className="break-all text-right font-medium">
+                {state.data.certificate?.filename ?? state.data.download_filename ?? '—'}
+              </dd>
+            </div>
+          </dl>
+
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Button
               size="sm"
               variant="secondary"
@@ -363,8 +386,8 @@ function CertificateSection({ status }: { status: string }) {
               </Button>
             )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {state.kind === 'ready' && !state.data.available && (
         <p className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-warning">

@@ -1,9 +1,18 @@
-"""Certificate automation: upload one award file, auto-email it to
-participants of approved teams through the transactional outbox.
+"""Certificate availability and certificate email distribution are two
+independent workflows.
 
-Also exposes an admin-focused operational surface: a delivery summary,
-per-team/per-recipient audit, certificate history (rollback to an older
-design), targeted re-sends, HTML preview and email-transport status.
+* Availability — a single uploaded award file is "active" and becomes
+  downloadable from the team leader's portal the moment a team is approved.
+  Downloading never depends on email (see ``/certificates/mine/download``).
+
+* Distribution — certificate emails are ONLY sent when an admin explicitly
+  triggers them via ``POST /certificates/send-all`` (or a per-team send).
+  Team approval does NOT queue or send any certificate email.
+
+The admin surface here covers upload/activate/history, per-team and
+per-recipient email delivery audit, targeted re-sends, failed-mail retries,
+an HTML preview and email-transport status — all kept separate from the
+portal-availability behaviour above.
 """
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
@@ -186,8 +195,9 @@ def my_certificate(
     """Leader-facing certificate status for their own team.
 
     Returns whether a participation certificate is downloadable right now,
-    plus the personalized award view (same HTML every participant receives
-    by email) once the team is approved and an active file exists.
+    plus the personalized award view (same HTML used in the certificate
+    email template) once the team is approved and an active file exists.
+    Availability here is portal-only and never depends on email delivery.
     """
     team = get_team_for_leader(db, current)
     if team is None:
@@ -241,9 +251,11 @@ def download_my_certificate(
 ) -> Response:
     """Download the team certificate file (approved leaders only).
 
-    Entitlement follows the same rules as the email automation: the leader's
-    team must be approved and an active certificate must exist. Any admin can
-    still use ``/{certificate_id}/download`` for audit purposes.
+    Entitlement is portal-availability based — the leader's team must be
+    approved and an active certificate must exist. Downloading is completely
+    independent of email delivery: it works even when no email has been
+    sent (or cannot be sent). Any admin can still use
+    ``/{certificate_id}/download`` for audit purposes.
     """
     team = get_team_for_leader(db, current)
     if team is None:
@@ -727,10 +739,13 @@ def send_all_approved(
     db: Session = Depends(get_db),
     current: User = Depends(get_current_admin),
 ) -> dict:
-    """Send the active certificate to every approved team (admin only).
+    """Send the active certificate to every eligible approved team (admin only).
 
-    Recipients already emailed for this certificate are skipped, so the
-    endpoint is safe to call more than once. Returns precise coverage counts.
+    This is the ONLY mechanism that triggers certificate emails — team approval
+    only unlocks portal availability. Recipients already emailed for this
+    certificate are skipped (``certificate_already_sent``), so the endpoint
+    is safe to call more than once. Returns precise coverage counts
+    (``emails_queued`` = recipients that still need the email).
     """
     _ = current
     certificate = _active_certificate(db)
@@ -741,27 +756,38 @@ def send_all_approved(
         )
 
     approved_teams = _approved_teams(db)
-    queued = 0
     recipients_planned = 0
-    recipients_skipped = 0
+    already_sent = 0
+    emails_queued = 0
+    teams_to_queue: list[Team] = []
 
     for team in approved_teams:
         team_recipients = _team_recipients(team)
         recipients_planned += len(team_recipients)
-        if all(
-            certificate_already_sent(db, certificate.id, address)
+        missing_addresses = [
+            address
             for address, _name in team_recipients
-        ):
-            recipients_skipped += len(team_recipients)
-            continue
+            if not certificate_already_sent(db, certificate.id, address)
+        ]
+        already_sent += len(team_recipients) - len(missing_addresses)
+        if missing_addresses:
+            emails_queued += len(missing_addresses)
+            teams_to_queue.append(team)
+
+    for team in teams_to_queue:
         background.add_task(task_send_team_certificates, team.id, certificate.id)
-        queued += 1
+
+    failed = sum(
+        1
+        for row in _award_rows(db, certificate.id)
+        if row.status == "failed"
+    )
 
     return {
         "certificate_id": certificate.id,
-        "approved_teams": len(approved_teams),
-        "teams_queued": queued,
+        "teams_processed": len(approved_teams),
         "recipients_planned": recipients_planned,
-        "recipients_skipped": recipients_skipped,
-        "recipients_to_send": recipients_planned - recipients_skipped,
+        "emails_queued": emails_queued,
+        "already_sent": already_sent,
+        "failed": failed,
     }

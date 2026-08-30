@@ -6,8 +6,8 @@ named artifact instead of a shared blank design.
 
 Rendering uses Pillow when it is installed and the template is an image
 (PNG/JPEG). When Pillow is unavailable — or the template is a PDF — callers
-fall back to the personalized HTML certificate, which every participant
-already receives by email.
+fall back to the personalized HTML certificate (the same artifact leaders
+view & print in the portal, and admins attach by email).
 
 Fonts are probed from common OS locations; if nothing usable is found the
 Pillow built-in bitmap font is scaled as best-effort, so composition never

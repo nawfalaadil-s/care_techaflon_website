@@ -1,4 +1,4 @@
-"""Certificate automation: upload, approval auto-send, bulk send, RBAC."""
+"""Certificate automation: upload, portal availability (no auto-email), manual send-all, RBAC."""
 
 import uuid
 
@@ -184,7 +184,8 @@ def test_upload_replaces_active_certificate() -> None:
         db.close()
 
 
-def test_approval_emails_certificate_to_whole_team_once() -> None:
+def test_approval_makes_certificate_available_but_does_not_email() -> None:
+    """Approval unlocks portal availability but never queues a certificate email."""
     admin = _make_admin()
     cert = _upload_certificate(admin)
     team = _create_team("CertSquad")
@@ -194,24 +195,34 @@ def test_approval_emails_certificate_to_whole_team_once() -> None:
 
     _approve(admin, team["id"])
 
-    # Leader + every member received exactly one award mail...
-    for address in recipients:
-        mails = _award_mails(address)
-        assert len(mails) == 1, f"{address} got {len(mails)} certificate emails"
-        assert mails[0].status in ("logged", "sent")
-        assert mails[0].certificate_id == cert["id"]
-        assert team["team_id"] in mails[0].body
+    # Approval unlocks the certificate in the leader's portal…
+    leader = _leader_headers(team["leader_email"])
+    mine = client.get("/api/certificates/mine", headers=leader)
+    assert mine.status_code == 200, mine.text
+    payload = mine.json()
+    assert payload["available"] is True
+    assert payload["reason"] is None
+    assert payload["certificate"]["id"] == cert["id"]
 
-    # ...and re-approving (status unchanged) sends nothing more.
+    download = client.get("/api/certificates/mine/download", headers=leader)
+    assert download.status_code == 200
+    assert download.content == PDF_BYTES
+
+    # …but queues NO certificate email (email is admin-triggered only).
+    for address in recipients:
+        assert len(_award_mails(address)) == 0, f"{address} got an email on approval"
+
+    # Re-approving (status unchanged) still sends nothing.
     _approve(admin, team["id"])
     for address in recipients:
-        assert len(_award_mails(address)) == 1
+        assert len(_award_mails(address)) == 0
 
 
-def test_approval_without_certificate_sends_no_attachments() -> None:
+def test_approval_sends_no_certificate_email() -> None:
     admin = _make_admin()
 
-    # Remove any active certificate.
+    # Approval never triggers a certificate email, regardless of whether
+    # a certificate design is currently active.
     assert client.delete("/api/certificates/current", headers=admin).status_code == 204
 
     team = _create_team("NoCertSquad")
@@ -219,6 +230,30 @@ def test_approval_without_certificate_sends_no_attachments() -> None:
 
     recipients = [team["leader_email"]] + [m["email"] for m in team["members"]]
     assert all(len(_award_mails(addr)) == 0 for addr in recipients)
+
+
+def test_bulk_approval_does_not_email_certificate() -> None:
+    """Bulk approval mirrors single approval: portal unlock, no emails."""
+    admin = _make_admin()
+    _upload_certificate(admin)
+    early = _create_team("BulkNoMailA")
+    late = _create_team("BulkNoMailB")
+
+    resp = client.patch(
+        "/api/teams/bulk-status",
+        json={"team_ids": [early["id"], late["id"]], "status": "approved"},
+        headers=admin,
+    )
+    assert resp.status_code == 200, resp.text
+
+    for team in (early, late):
+        for address in [team["leader_email"], *[m["email"] for m in team["members"]]]:
+            assert len(_award_mails(address)) == 0, f"{address} emailed on bulk approval"
+        # Portal availability is unlocked even though no email was sent.
+        leader = _leader_headers(team["leader_email"])
+        mine = client.get("/api/certificates/mine", headers=leader)
+        assert mine.status_code == 200, mine.text
+        assert mine.json()["available"] is True
 
 
 def test_send_all_covers_approved_teams_without_duplicates() -> None:
@@ -235,6 +270,13 @@ def test_send_all_covers_approved_teams_without_duplicates() -> None:
     # Bulk send reaches both teams' participants exactly once.
     sent = client.post("/api/certificates/send-all", headers=admin)
     assert sent.status_code == 200, sent.text
+    body = sent.json()
+    assert body["certificate_id"] == cert["id"]
+    assert body["teams_processed"] >= 2
+    assert body["recipients_planned"] >= 6  # 2 teams x (leader + 2 members)
+    assert body["already_sent"] == 0
+    assert body["emails_queued"] >= 6
+    assert body["failed"] == 0
 
     for team in (early, late):
         for address in [team["leader_email"], *[m["email"] for m in team["members"]]]:
@@ -245,6 +287,8 @@ def test_send_all_covers_approved_teams_without_duplicates() -> None:
     # Calling it again is a no-op — everyone already has their mail.
     again = client.post("/api/certificates/send-all", headers=admin)
     assert again.status_code == 200
+    assert again.json()["already_sent"] >= 6
+    assert again.json()["emails_queued"] == 0
     for team in (early, late):
         for address in [team["leader_email"], *[m["email"] for m in team["members"]]]:
             assert len(_award_mails(address)) == 1
@@ -252,6 +296,48 @@ def test_send_all_covers_approved_teams_without_duplicates() -> None:
 
 def test_send_all_requires_admin() -> None:
     assert client.post("/api/certificates/send-all").status_code == 401
+
+
+def test_resend_failed_certificates_retries_once() -> None:
+    """Failed award mails stay failed until the admin retries them."""
+    admin = _make_admin()
+    cert = _upload_certificate(admin)
+    team = _create_team("RetrySquad")
+    _approve(admin, team["id"])
+
+    # Deliver the certificate mail (log mode), then flip one row to "failed"
+    # to simulate a real transport failure.
+    client.post("/api/certificates/send-all", headers=admin)
+
+    db = SessionLocal()
+    try:
+        mails = list(
+            db.scalars(
+                select(EmailMessage)
+                .where(EmailMessage.template == "certificate_award")
+                .where(EmailMessage.certificate_id == cert["id"])
+            )
+        )
+        assert mails, "send-all should have queued award mails"
+        target = mails[0]
+        target.status = "failed"
+        target.error = "simulated transport failure"
+        db.commit()
+    finally:
+        db.close()
+
+    retried = client.post("/api/certificates/resend-failed", headers=admin)
+    assert retried.status_code == 200, retried.text
+    body = retried.json()
+    assert body["certificate_id"] == cert["id"]
+    assert body["retried"] == 1
+    assert body["still_failed"] == []
+    assert body["now_delivered"] == 1
+
+    # A second retry has nothing left to do.
+    again = client.post("/api/certificates/resend-failed", headers=admin)
+    assert again.status_code == 200
+    assert again.json()["retried"] == 0
 
 
 def test_leader_can_login_with_provisioned_password() -> None:
@@ -368,6 +454,10 @@ def test_delivery_summary_tracks_coverage() -> None:
     team = _create_team("CertCoverage")
     _approve(admin, team["id"])
 
+    # Delivery metrics reflect EMAIL dispatch, not portal availability -
+    # so push send-all first, then assert the coverage report picks it up.
+    client.post("/api/certificates/send-all", headers=admin)
+
     response = client.get("/api/certificates/delivery-summary", headers=admin)
     assert response.status_code == 200, response.text
     payload = response.json()
@@ -385,6 +475,9 @@ def test_certificate_history_reports_metrics() -> None:
     cert = _upload_certificate(admin)
     team = _create_team("CertHistory")
     _approve(admin, team["id"])
+
+    # History mail counters track EMAIL outbox state, so dispatch once first.
+    client.post("/api/certificates/send-all", headers=admin)
 
     response = client.get("/api/certificates/history", headers=admin)
     assert response.status_code == 200, response.text
@@ -406,6 +499,9 @@ def test_teams_endpoint_reports_per_recipient_status() -> None:
     _upload_certificate(admin)
     team = _create_team("CertTeamsStatus")
     _approve(admin, team["id"])
+
+    # Per-recipient status reflects EMAIL dispatch, not just approval.
+    client.post("/api/certificates/send-all", headers=admin)
 
     response = client.get("/api/certificates/teams", headers=admin)
     assert response.status_code == 200, response.text

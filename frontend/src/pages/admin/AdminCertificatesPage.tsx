@@ -165,7 +165,7 @@ export default function AdminCertificatesPage() {
       await loadOperations()
       setNotice({
         tone: 'success',
-        text: `Certificate "${info.filename}" is now active. Approvals will email it automatically.`,
+        text: `Certificate "${info.filename}" is now active. Approved teams can download it from their portal immediately — emails are sent only when you press "Send All Certificates".`,
       })
     } catch (error) {
       setNotice({ tone: 'error', text: normalizeApiError(error).message })
@@ -177,10 +177,10 @@ export default function AdminCertificatesPage() {
 
   async function handleSendAll() {
     if (!certificate) return
-    const planned = summary?.planned_recipients ?? 0
-    const confirmText = planned
-      ? `Email the active certificate to every approved team? About ${planned} participant(s) not yet covered will be queued (duplicates auto-skipped).`
-      : 'Email the active certificate to every approved team? Duplicates are auto-skipped.'
+    const confirmText =
+      'Send certificates to all eligible approved teams?\n\n' +
+      'This will send the active certificate to recipients who have not ' +
+      'already received it. Portal downloads are unaffected.'
     if (!window.confirm(confirmText)) return
     setSending(true)
     setNotice(null)
@@ -188,7 +188,12 @@ export default function AdminCertificatesPage() {
       const result = await certificatesApi.sendAll()
       setNotice({
         tone: 'success',
-        text: `Queued for ${result.teams_queued} of ${result.approved_teams} approved teams · ${result.recipients_to_send} recipient(s) planned, ${result.recipients_skipped} already covered.`,
+        text:
+          `Certificates processed successfully.\n` +
+          `Teams processed: ${result.teams_processed}\n` +
+          `Emails sent: ${result.emails_queued}\n` +
+          `Already sent: ${result.already_sent}\n` +
+          `Failed: ${result.failed}`,
       })
       await loadOperations()
     } catch (error) {
@@ -324,10 +329,12 @@ export default function AdminCertificatesPage() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle>Certificate automation</CardTitle>
+              <CardTitle>Certificates</CardTitle>
               <CardDescription>
-                Upload one award file. Every approval emails it to the team's
-                leader and members automatically.
+                Upload one award file. It is immediately available to every
+                approved team's portal. Certificate emails are only sent when
+                you press “Send All Certificates” below — approval never
+                emails anything by itself.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -342,7 +349,7 @@ export default function AdminCertificatesPage() {
           {notice ? (
             <p
               role="status"
-              className={`rounded-lg border px-3 py-2 text-sm ${
+              className={`whitespace-pre-line rounded-lg border px-3 py-2 text-sm ${
                 notice.tone === 'success'
                   ? 'border-success/40 bg-success/10 text-success'
                   : notice.tone === 'info'
@@ -431,11 +438,12 @@ export default function AdminCertificatesPage() {
                 )}
                 <Button
                   variant="secondary"
+                  className="font-semibold"
                   disabled={sending}
                   onClick={() => void handleSendAll()}
                 >
                   {sending ? <Spinner className="h-4 w-4" /> : null}
-                  Send to all approved teams
+                  Send All Certificates
                 </Button>
                 {failedCount > 0 && (
                   <Button
@@ -465,8 +473,9 @@ export default function AdminCertificatesPage() {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            How it works: approving a team (or pressing “Send to all approved
-            teams”) queues one email per participant through the outbox.
+            How it works: approving a team only makes the certificate available
+            in their leader's portal. “Send All Certificates” below is the
+            only action that queues certificate emails through the outbox.
             Delivery failures surface below and can be retried right here.
             Nobody receives the same certificate twice.
           </p>
@@ -504,7 +513,13 @@ function DeliveryStats({
   return (
     <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="font-medium">Delivery coverage</p>
+        <div>
+          <p className="font-medium">Email delivery</p>
+          <p className="text-xs text-muted-foreground">
+            Certificate status: Available to approved teams (portal download
+            is independent of email and never requires it).
+          </p>
+        </div>
         {allDelivered ? (
           <Badge variant="success">Everyone covered</Badge>
         ) : failedCount > 0 ? (
@@ -610,8 +625,9 @@ function ApprovedTeamsCard({
           <div>
             <CardTitle>Approved teams audit</CardTitle>
             <CardDescription>
-              Who has received the active certificate, per team — and send to
-              any single team that is missing it.
+              Who has received the active certificate by EMAIL, per team — and
+              send to any single team that is missing it. Portal availability is
+              untouched by these counts.
             </CardDescription>
           </div>
           {teamsStatus && (
@@ -628,8 +644,9 @@ function ApprovedTeamsCard({
       <CardContent>
         {teams.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-            No approved teams yet. Approve teams from the Registrations page and
-            their certificates go out automatically.
+            No approved teams yet. Approve teams from the Registrations page —
+            each one unlocks the certificate in its leader's portal immediately.
+            “Send All Certificates” above distributes them by email.
           </p>
         ) : (
           <ul className="space-y-3">

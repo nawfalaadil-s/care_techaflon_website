@@ -33,7 +33,6 @@ from app.services.team import (
 )
 from app.services.user import ensure_leader_account
 from app.workers.email_tasks import (
-    task_send_team_certificates,
     task_send_team_confirmation,
     task_send_team_status_update,
 )
@@ -101,24 +100,16 @@ def bulk_update_status_endpoint(
     """Update approval status for multiple teams at once (admin only)."""
     updated_count, errors = bulk_update_team_status(db, payload.team_ids, payload.status)
 
-    # Queue status-change emails + certificate sends for each updated team.
-    if payload.status == "approved":
-        from sqlalchemy import select as _select
-        from app.models.certificate import Certificate
-
-        certificate = db.scalar(
-            _select(Certificate).where(Certificate.active.is_(True))
-        )
-    else:
-        certificate = None
-
+    # Queue status-change notification emails for each updated team.
+    # Certificate *distribution* is decoupled from approval: certificates become
+    # available in the team leader's portal immediately on approval, but emails
+    # are only sent when an admin explicitly triggers them via
+    # POST /api/certificates/send-all (or the per-team equivalent).
     for tid in payload.team_ids:
         team = get_team_by_id(db, tid)
         if team is None:
             continue
         background.add_task(task_send_team_status_update, team.id, payload.status)
-        if payload.status == "approved" and certificate is not None:
-            background.add_task(task_send_team_certificates, team.id, certificate.id)
 
     return BulkOperationResult(updated=updated_count, errors=errors)
 
@@ -457,20 +448,9 @@ def update_team_status_endpoint(
     if payload.status != previous_status:
         background.add_task(task_send_team_status_update, updated.id, payload.status)
 
-        # Certificate automation: an approval (with a certificate uploaded)
-        # emails the award file to every participant of the team.
-        if payload.status == "approved":
-            from sqlalchemy import select as _select
-
-            from app.models.certificate import Certificate
-
-            certificate = db.scalar(
-                _select(Certificate).where(Certificate.active.is_(True))
-            )
-            if certificate is not None:
-                background.add_task(
-                    task_send_team_certificates, updated.id, certificate.id
-                )
+        # Certificate availability unlocks in the leader's portal on approval,
+        # but email *distribution* is admin-triggered only
+        # (POST /certificates/send-all), not automatic on approval.
 
     response = TeamResponse.model_validate(updated)
     response.problem_statement_title = resolve_ps_title(db, updated.problem_statement_id)

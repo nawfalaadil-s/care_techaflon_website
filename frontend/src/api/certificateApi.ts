@@ -21,11 +21,11 @@ export interface CertificateHistoryItem extends CertificateInfo {
 
 export interface SendAllResult {
   certificate_id: string
-  approved_teams: number
-  teams_queued: number
+  teams_processed: number
   recipients_planned: number
-  recipients_skipped: number
-  recipients_to_send: number
+  emails_queued: number
+  already_sent: number
+  failed: number
 }
 
 export interface DeliverySummary {

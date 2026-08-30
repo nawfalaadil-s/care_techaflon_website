@@ -173,10 +173,10 @@ def task_send_team_status_update(team_id: str, new_status: str) -> None:
 def task_send_team_certificates(team_id: str, certificate_id: str) -> None:
     """Email the participation certificate to every member of a team.
 
-    Fired automatically when an admin approves a team (with an active
-    certificate uploaded) and by the admin bulk-send endpoint. Each
-    recipient is checked against the outbox first so nobody is mailed
-    twice for the same certificate.
+    Triggered ONLY by the admin certificate distribution surface
+    (POST /certificates/send-all, or a per-team send) — never automatically
+    on team approval. Each recipient is checked against the outbox first so
+    nobody is mailed twice for the same certificate.
     """
     from app.models.certificate import Certificate
     from app.models.team import Team
