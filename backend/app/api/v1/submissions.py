@@ -1,4 +1,9 @@
+import csv
+import io
+from datetime import datetime
+
 from fastapi import APIRouter, BackgroundTasks, Depends, Response, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -13,6 +18,7 @@ from app.schemas.submission import (
     SubmissionResponse,
     SubmissionStatusResponse,
 )
+from app.schemas.team import resolve_ps_title
 from app.services.submission import (
     delete_for_team,
     get_submission_for_user,
@@ -60,6 +66,85 @@ def list_all_submissions(
         }
         for submission, team in rows
     ]
+
+
+@router.get("/all/submissions/export/csv")
+def export_all_submissions_csv(
+    theme: str | None = None,
+    status: str | None = None,
+    lock: str | None = None,
+    q: str | None = None,
+    current: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Export every project submission as a CSV file (admin only).
+
+    The static ``/all/submissions/export/csv`` path is declared before the
+    dynamic ``/{registration_id}/submission`` routes so it never collides
+    with a registration named ``all``. Respects the same filters
+    (theme / status / lock / free-text ``q``) used by the admin UI.
+    """
+    rows = db.execute(
+        select(Submission, Team)
+        .join(Team, Team.id == Submission.registration_id)
+        .order_by(Submission.updated_at.desc())
+    ).all()
+
+    if q:
+        needle = q.strip().lower()
+        rows = [
+            (submission, team)
+            for submission, team in rows
+            if needle in team.team_name.lower()
+            or needle in team.team_id.lower()
+            or needle in submission.project_name.lower()
+            or needle in team.leader_email.lower()
+        ]
+
+    buf = io.StringIO()
+    buf.write("\ufeff")  # UTF-8 BOM so Excel opens non-ASCII correctly.
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "Team ID",
+            "Team Name",
+            "Problem Statement",
+            "Project Name",
+            "Project Description",
+            "GitHub URL",
+        ]
+    )
+
+    for submission, team in rows:
+        if theme and team.theme != theme:
+            continue
+        if status and team.status != status:
+            continue
+        if lock == "locked" and not submission.locked:
+            continue
+        if lock == "unlocked" and submission.locked:
+            continue
+
+        writer.writerow(
+            [
+                team.team_id,
+                team.team_name,
+                resolve_ps_title(db, team.problem_statement_id) or "",
+                submission.project_name,
+                submission.description,
+                submission.repo_url,
+            ]
+        )
+
+    buf.seek(0)
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    filename = f"submissions_{timestamp}.csv"
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get(

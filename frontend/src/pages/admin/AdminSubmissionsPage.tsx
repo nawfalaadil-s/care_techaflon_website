@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { normalizeApiError } from '@/api/client'
@@ -13,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
 import { THEME_LABELS } from '@/data/tracks'
 import { TEAM_STATUS_LABELS, TEAM_STATUSES } from '@/data/status'
 
@@ -34,6 +36,8 @@ export default function AdminSubmissionsPage() {
   const [themeFilter, setThemeFilter] = useState<'all' | string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | string>('all')
   const [lockFilter, setLockFilter] = useState<'all' | 'locked' | 'unlocked'>('all')
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' })
@@ -49,6 +53,24 @@ export default function AdminSubmissionsPage() {
     const id = window.setTimeout(load, 0)
     return () => window.clearTimeout(id)
   }, [load])
+
+  const handleExportCsv = useCallback(async () => {
+    if (exporting) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      await submissionApi.exportAdminCsv({
+        theme: themeFilter,
+        status: statusFilter,
+        lock: lockFilter,
+        q: search,
+      })
+    } catch (error) {
+      setExportError(normalizeApiError(error).message)
+    } finally {
+      setExporting(false)
+    }
+  }, [exporting, themeFilter, statusFilter, lockFilter, search])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -77,10 +99,34 @@ export default function AdminSubmissionsPage() {
             straight from here.
           </p>
         </div>
-        <Button variant="outline" onClick={() => void load()}>
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            disabled={exporting}
+            onClick={() => void handleExportCsv()}
+            title="Download the currently filtered submissions as a CSV file"
+          >
+            {exporting ? (
+              <Spinner size="sm" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            {exporting ? 'Exporting…' : 'Download CSV'}
+          </Button>
+          <Button variant="outline" onClick={() => void load()}>
+            Refresh
+          </Button>
+        </div>
       </header>
+
+      {exportError && (
+        <div
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          Couldn’t download the CSV. {exportError}
+        </div>
+      )}
 
       {state.kind === 'error' && (
         <Card>

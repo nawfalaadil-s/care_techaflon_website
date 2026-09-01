@@ -190,3 +190,42 @@ def test_submissions_require_auth() -> None:
     assert (
         client.put("/api/teams/some-id/submission", json=PAYLOAD).status_code == 401
     )
+
+
+def test_admin_can_bulk_export_submissions_csv() -> None:
+    team_id, _ = _team_with_account()
+    created = client.put(f"/api/teams/{team_id}/submission", json=PAYLOAD)
+    assert created.status_code == 200, created.text
+    admin = _make_admin()
+
+    response = client.get("/api/teams/all/submissions/export/csv", headers=admin)
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "attachment" in response.headers["content-disposition"]
+    assert "submissions_" in response.headers["content-disposition"]
+
+    text = response.content.decode("utf-8-sig")  # BOM stripped.
+    lines = text.splitlines()
+    assert lines[0] == (
+        "Team ID,Team Name,Problem Statement,Project Name,"
+        "Project Description,GitHub URL"
+    )
+    assert any(PAYLOAD["project_name"] in line for line in lines[1:])
+    assert any(PAYLOAD["repo_url"] in line for line in lines[1:])
+    assert any(PAYLOAD["description"] in line for line in lines[1:])
+
+
+def test_admin_submissions_export_requires_admin() -> None:
+    team_id, _ = _team_with_account()
+    client.put(f"/api/teams/{team_id}/submission", json=PAYLOAD)
+
+    # Unauthenticated callers are rejected.
+    anon = client.get("/api/teams/all/submissions/export/csv")
+    assert anon.status_code == 401
+
+    # Signed-in non-admin (a team leader) is forbidden.
+    _, leader_headers = _team_with_account()
+    forbidden = client.get(
+        "/api/teams/all/submissions/export/csv", headers=leader_headers
+    )
+    assert forbidden.status_code == 403
