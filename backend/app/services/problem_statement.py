@@ -56,11 +56,17 @@ def generate_statement_id(db: "Session", track: str | None) -> str:
     from sqlalchemy import func
 
     count = db.scalar(select(func.count()).select_from(ProblemStatement)) or 0
-    number = int(count) + 1
-    candidate = f"PS-{number:03d}"
-    if db.get(ProblemStatement, candidate) is not None:
-        candidate = f"PS-{_uuid.uuid4().hex[:4].upper()}"
-    return candidate
+    
+    # Try to find a free ID starting from count + 1
+    max_attempts = 100
+    for attempt in range(max_attempts):
+        number = int(count) + 1 + attempt
+        candidate = f"PS-{number:03d}"
+        if db.get(ProblemStatement, candidate) is None:
+            return candidate
+    
+    # If all sequential IDs are taken, use a random one
+    return f"PS-{_uuid.uuid4().hex[:6].upper()}"
 
 
 def create(
