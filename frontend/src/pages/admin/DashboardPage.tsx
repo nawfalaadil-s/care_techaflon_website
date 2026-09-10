@@ -9,11 +9,11 @@ import type { BadgeVariant } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
-import { THEME_LABELS } from '@/data/tracks'
 import {
   TEAM_STATUSES,
   TEAM_STATUS_LABELS,
   TEAM_STATUS_VARIANT,
+  type TeamStatus,
 } from '@/data/status'
 
 type LoadState =
@@ -100,19 +100,19 @@ export default function DashboardPage() {
         <StatCard label="Accounts" value={stats!.users.total} />
       </div>
 
-      {/* Theme distribution */}
+      {/* Registration status distribution */}
       <Card>
         <CardContent className="space-y-3 pt-6">
-          <h2 className="font-display text-lg font-semibold">Teams per theme</h2>
+          <h2 className="font-display text-lg font-semibold">Teams per status</h2>
           {teams.total === 0 ? (
             <p className="text-sm text-muted-foreground">No teams yet.</p>
           ) : (
-            Object.entries(teams.by_theme)
+            Object.entries(teams.by_status)
               .sort((a, b) => b[1] - a[1])
-              .map(([theme, count]) => (
-                <div key={theme} className="space-y-1">
+              .map(([status_key, count]) => (
+                <div key={status_key} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
-                    <span>{THEME_LABELS[theme] ?? theme}</span>
+                    <span>{TEAM_STATUS_LABELS[status_key as TeamStatus] ?? status_key}</span>
                     <span className="text-muted-foreground">{count}</span>
                   </div>
                   <div

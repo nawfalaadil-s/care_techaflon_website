@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+﻿import { Link } from 'react-router-dom';
 
 import { Container } from '@/components/ui/container';
 
@@ -13,12 +13,13 @@ export function PublicFooter() {
           {/* Event Description */}
           <div>
             <h3 className="text-xl font-display font-bold text-foreground mb-4">
-              TechAFlon
+              TechaFlon Finals
             </h3>
             <p className="text-steel-bright text-sm leading-relaxed">
               A futuristic command center experience where teams build technology
-              solutions to survive the technological apocalypse. 48 hours. One
-              battlefield. Infinite possibilities.
+              solutions to survive the technological apocalypse. The finals go
+              down on 11 September 2026. 48 hours. One battlefield. Infinite
+              possibilities.
             </p>
           </div>
 
@@ -87,7 +88,7 @@ export function PublicFooter() {
         <div className="pt-8 border-t border-steel/20 flex justify-center items-center">
           <div className="text-center">
             <p className="text-steel-bright text-sm">
-              © {new Date().getFullYear()} TechAFlon. All rights reserved.
+              Â© {new Date().getFullYear()} TechaFlon Finals. All rights reserved.
             </p>
             <p className="text-steel text-sm mt-1">
               Developed by{' '}

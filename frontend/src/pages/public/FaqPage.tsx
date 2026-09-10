@@ -48,12 +48,12 @@ const FAQ_CATEGORIES = [
         answer: '2nd Year, 3rd Year and Final Year students are eligible to participate.',
       },
       {
-        question: 'When does registration open?',
-        answer: 'Registration opens on 27 August 2026.',
+        question: 'Is registration open for the finals?',
+        answer: 'No — registration is closed. The prelims have concluded, and only qualified teams compete in the TechAFlon Finals.',
       },
       {
-        question: 'When does registration close?',
-        answer: 'Registration closes on 29 August 2026.',
+        question: 'When is the TechAFlon Finals?',
+        answer: 'The TechAFlon Finals take place on 11 September 2026 at CARE College of Engineering, Trichy.',
       },
     ],
   },
@@ -63,15 +63,11 @@ const FAQ_CATEGORIES = [
     items: [
       {
         question: 'When is Event Phase 1?',
-        answer: 'Event Phase 1 takes place on 31 August 2026.',
+        answer: 'Event Phase 1 (prelims) took place on 31 August 2026. The TechAFlon Finals take place on 11 September 2026.',
       },
       {
         question: 'What happens during Phase 1?',
         answer: 'Problem statements are provided on the spot during the event. Teams build their projects and submit their required project information through the portal.',
-      },
-      {
-        question: 'What themes can teams choose during registration?',
-        answer: 'Teams can choose one of the following development themes: AI / ML or Web Development.',
       },
     ],
   },
@@ -81,7 +77,7 @@ const FAQ_CATEGORIES = [
     items: [
       {
         question: 'When will the problem statement be available?',
-        answer: 'Problem statements will be provided during Event Phase 1 on 31 August 2026.',
+        answer: 'Problem statements will be provided during the TechAFlon Finals on 11 September 2026.',
       },
       {
         question: 'How will we receive our problem statement?',
@@ -166,7 +162,7 @@ export default function FaqPage() {
             Frequently asked questions
           </h1>
           <p className="mt-2 text-muted-foreground">
-            Everything about TechAFlon, registration, logistics and judging.
+            Everything about TechAFlon Finals, registration, logistics and judging.
             Can’t find it? Email{' '}
             <a
               href="mailto:cssa@caretech.edu"

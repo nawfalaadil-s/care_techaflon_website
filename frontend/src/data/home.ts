@@ -1,12 +1,12 @@
-/**
- * TechaFlon — Doomsday Theme Content
+﻿/**
+ * TechaFlon â€” Doomsday Theme Content
  * 
  * TechAFlon: Avengers Doomsday Theme Internal Hackathon
  * Hosted by CSSA, CARE College of Engineering, Trichy
  * 
- * Theme: TechAFlon — The Doomsday Protocol
- * Departments: CSE × AI & DS
- * Event Date: 31 August 2026
+ * Theme: TechAFlon â€” The Doomsday Protocol
+ * Departments: CSE Ã— AI & DS
+ * Finals Date: 11 September 2026 (prelims held 31 August 2026)
  */
 
 export interface TeamMember {
@@ -35,7 +35,6 @@ export interface HomeContent {
     subtext: string
   }
   stats: Array<{ value: string; label: string }>
-  tracks: Array<{ id: string; icon: string; title: string; description: string }>
   timeline: Array<{ date: string; label: string; description: string }>
   prizes: never[]
   steps: Array<{ title: string; description: string }>
@@ -67,43 +66,26 @@ export interface HomeContent {
 
 export const homeContent: HomeContent = {
   event: {
-    name: 'TechaFlon',
+    name: 'TechaFlon Finals',
     tagline: 'THE DOOMSDAY PROTOCOL',
     description:
       'An internal innovation hackathon for CSE and AI & DS students of CARE College of Engineering, Trichy.',
-    dateLabel: '31 AUGUST 2026',
+    dateLabel: '11 SEPTEMBER 2026',
     format: 'Internal Hackathon',
     location: 'CARE College of Engineering, Trichy',
-    startDate: '2026-08-31T10:00:00+05:30',
+    startDate: '2026-09-11T10:00:00+05:30',
   },
   hero: {
     eyebrow: 'CSSA PRESENTS',
-    headline: 'TECHAFLON',
+    headline: 'TECHAFLON FINALS',
     highlight: 'THE DOOMSDAY PROTOCOL',
     subtext:
-      'The clock is running. Build what comes next. An internal hackathon for CSE × AI & DS students.',
+      'The clock is running. Build what comes next. An internal hackathon for CSE Ã— AI & DS students.',
   },
   stats: [
-    { value: '31', label: 'August' },
-    { value: 'CSE × AI & DS', label: 'Departments' },
+    { value: '11', label: 'September' },
+    { value: 'CSE Ã— AI & DS', label: 'Departments' },
     { value: 'TBD', label: 'Venue' },
-  ],
-  tracks: [
-    {
-      id: 'ai-ml',
-      icon: '◉',
-      title: 'AI / ML',
-      description:
-        'Intelligent systems, predictive models and tools that learn from data.',
-    },
-    {
-      id: 'web',
-      icon: '◈',
-      title: 'Web Development',
-      description:
-        'Fast, accessible applications and services built for the real web.',
-    },
-
   ],
   timeline: [],
   prizes: [],
@@ -128,12 +110,12 @@ export const homeContent: HomeContent = {
   cta: {
     title: 'READY TO ENTER THE DOOMSDAY PROTOCOL?',
     description:
-      'Gather your team. Choose your battlefield. The countdown has already begun.',
+      'The finals are here. One last build. The countdown has already begun.',
   },
   about: {
-    title: 'WHAT IS TECHAFLON?',
+    title: 'WHAT IS TECHAFLON FINALS?',
     description:
-      'TechAFlon is an internal hackathon conducted by the Computer Science Students Association (CSSA) at CARE College of Engineering, Trichy. The event brings together students from Computer Science and Engineering and Artificial Intelligence & Data Science to collaborate, solve challenging problems, and build innovative technology solutions.',
+      'TechAFlon Finals is the final round of the internal hackathon conducted by the Computer Science Students Association (CSSA) at CARE College of Engineering, Trichy. After the prelims on 31 August 2026, qualified teams from Computer Science and Engineering and Artificial Intelligence & Data Science return on 11 September 2026 to collaborate, solve challenging problems, and build innovative technology solutions.',
   },
   departments: {
     title: 'TWO DEPARTMENTS. ONE BATTLEFIELD.',
@@ -158,15 +140,21 @@ export const homeContent: HomeContent = {
   },
   phases: [
     {
-      phase: 'Phase 1',
+      phase: 'Prelims',
       date: '31.08.2026',
-      description: 'Event Phase - Problem statements provided on spot',
-      status: 'UPCOMING',
+      description: 'Prelims Phase - completed on the original event date',
+      status: 'COMPLETED',
     },
     {
       phase: 'Registration',
       date: '27.08.2026 - 29.08.2026',
-      description: 'Registration opens and closes',
+      description: 'Registration closed',
+      status: 'CLOSED',
+    },
+    {
+      phase: 'Finals',
+      date: '11.09.2026',
+      description: 'Techaflon Finals - Problem statements provided on spot',
       status: 'UPCOMING',
     },
   ],

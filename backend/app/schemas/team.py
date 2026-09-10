@@ -5,11 +5,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-# Valid themes for TechAFlon
+# Valid themes for TechAFlon — LEGACY. The finals dropped themes entirely;
+# the column still exists so historic teams keep their value, but new teams
+# register without one and no validation is applied anymore.
 TEAM_THEMES = {"ai-ml", "web"}
-
-# Themes selectable during public registration (event offers exactly two).
-REGISTRATION_THEMES = {"ai-ml", "web"}
 
 # Valid departments
 DEPARTMENT_OPTIONS = {"CSE", "AI & DS"}
@@ -57,7 +56,9 @@ class TeamCreate(BaseModel):
     """Create a new TechAFlon team (public registration flow)."""
 
     team_name: str = Field(min_length=2, max_length=120)
-    theme: str = Field(min_length=2, max_length=64)
+    # Finals: themes are retired. Optional for backwards compatibility with
+    # historic payloads; new registrations simply omit it (stored as "").
+    theme: str = Field(default="", max_length=64)
 
     # Leader info
     leader_name: str = Field(min_length=2, max_length=120)
@@ -86,16 +87,6 @@ class TeamCreate(BaseModel):
         if not EMAIL_RE.match(value):
             raise ValueError("enter a valid email address")
         return value
-
-    @field_validator("theme")
-    @classmethod
-    def _validate_theme(cls, value: str) -> str:
-        theme = value.strip().lower()
-        if theme not in REGISTRATION_THEMES:
-            raise ValueError(
-                f"theme must be one of: {', '.join(sorted(REGISTRATION_THEMES))}"
-            )
-        return theme
 
     @field_validator(
         "leader_department",
@@ -217,19 +208,10 @@ class TeamUpdate(BaseModel):
     """Partial team update."""
 
     team_name: str | None = Field(default=None, min_length=2, max_length=120)
-    theme: str | None = Field(default=None, min_length=2, max_length=64)
+    # Legacy field — accepted but no longer validated or surfaced in the UI.
+    theme: str | None = Field(default=None, max_length=64)
     venue_name: str | None = Field(default=None, min_length=2, max_length=120)
     venue_location: str | None = Field(default=None, min_length=2, max_length=500)
-
-    @field_validator("theme")
-    @classmethod
-    def _validate_theme(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        theme = value.strip().lower()
-        if theme not in TEAM_THEMES:
-            raise ValueError(f"theme must be one of: {', '.join(sorted(TEAM_THEMES))}")
-        return theme
 
 
 class TeamStatusUpdate(BaseModel):

@@ -25,19 +25,6 @@ const YEAR_OPTIONS = [
   { value: 'Final Year', label: 'IV' },
 ] as const
 
-const THEME_OPTIONS = [
-  {
-    value: 'ai-ml',
-    title: 'AI / ML',
-    description: 'Artificial Intelligence & Machine Learning',
-  },
-  {
-    value: 'web',
-    title: 'WEB',
-    description: 'Web Development',
-  },
-] as const
-
 const MIN_TEAM_SIZE = 3
 const MAX_TEAM_SIZE = 4
 
@@ -59,7 +46,6 @@ type MemberRow = TeamMemberInput
 
 interface FormState {
   team_name: string
-  theme: string
   leader: LeaderFields
   members: MemberRow[]
 }
@@ -82,7 +68,6 @@ const emptyMember = (): MemberRow => ({
 
 const initialState = (): FormState => ({
   team_name: '',
-  theme: '',
   leader: emptyLeader(),
   // Start with two empty member slots: leader + 2 = the minimum of 3.
   members: [emptyMember(), emptyMember()],
@@ -99,7 +84,6 @@ function validateStep1(form: FormState): Errors {
   const e: Errors = {}
   if (form.team_name.trim().length < 2)
     e.team_name = 'Enter a team name (min. 2 characters).'
-  if (!form.theme) e.theme = 'Select exactly one theme.'
   if (form.leader.name.trim().length < 2)
     e['leader.name'] = "Enter the leader's full name."
   if (!form.leader.register_number.trim())
@@ -177,71 +161,6 @@ function StepIndicator({ step }: { step: Exclude<StepId, 3> }) {
   )
 }
 
-
-function ThemeCards({
-  value,
-  onChange,
-  error,
-}: {
-  value: string
-  onChange: (v: string) => void
-  error?: string
-}) {
-  return (
-    <div>
-      <p className="text-sm font-medium text-foreground">
-        Theme<span aria-hidden="true" className="ml-0.5 text-destructive">*</span>
-      </p>
-      <div
-        role="radiogroup"
-        aria-label="Theme"
-        className="mt-2 grid gap-3 sm:grid-cols-2"
-      >
-        {THEME_OPTIONS.map((t) => {
-          const selected = value === t.value
-          return (
-            <button
-              key={t.value}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              onClick={() => onChange(t.value)}
-              className={`rounded-xl border p-4 text-left transition-[border-color,background-color] duration-300 ease-out focus-ring ${
-                selected
-                  ? 'border-primary/60 bg-primary/10 shadow-[0_0_24px_rgba(79,143,90,0.18)]'
-                  : 'border-primary/15 bg-surface/60 hover:border-primary/40'
-              }`}
-            >
-              <span className="flex items-center justify-between gap-2">
-                <span className="font-display text-base font-bold tracking-wide text-foreground">
-                  {t.title}
-                </span>
-                <span
-                  aria-hidden="true"
-                  className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                    selected
-                      ? 'border-primary-bright bg-primary/30'
-                      : 'border-border'
-                  }`}
-                >
-                  {selected && <Check className="h-3 w-3 text-primary-bright" />}
-                </span>
-              </span>
-              <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                {t.description}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-      {error && (
-        <p role="alert" className="mt-2 text-sm text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
 
 function SummaryRow({ k, v }: { k: string; v: string }) {
   return (
@@ -327,7 +246,6 @@ export default function RegistrationPage() {
     try {
       const record = await teamApi.create({
         team_name: form.team_name.trim(),
-        theme: form.theme,
         leader_name: form.leader.name.trim(),
         leader_email: form.leader.email.trim().toLowerCase(),
         leader_register_number: form.leader.register_number.trim(),
@@ -366,7 +284,7 @@ export default function RegistrationPage() {
               TEAM REGISTERED
             </h1>
             <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-steel-bright sm:text-base">
-              Your TechAFlon team has been successfully registered.
+              Your TechAFlon Finals team has been successfully registered.
             </p>
 
             <div className="mt-8 rounded-xl border border-primary/30 bg-background/60 px-6 py-5">
@@ -381,13 +299,6 @@ export default function RegistrationPage() {
               <SuccessRow k="Team Leader" v={team.leader_name} />
               <SuccessRow k="Department" v={team.leader_department} />
               <SuccessRow k="Year" v={team.leader_year} />
-              <SuccessRow
-                k="Theme"
-                v={
-                  THEME_OPTIONS.find((t) => t.value === team.theme)?.title ??
-                  team.theme
-                }
-              />
             </dl>
 
             <div className="mt-8 rounded-xl border border-primary/15 bg-surface/60 p-5 text-left">
@@ -602,12 +513,6 @@ export default function RegistrationPage() {
                 </Field>
               </div>
 
-              <ThemeCards
-                value={form.theme}
-                onChange={(theme) => update({ theme })}
-                error={fieldError(errors, 'theme')}
-              />
-
               <div className="pt-2">
                 <Button type="button" size="lg" className="w-full" onClick={goNext}>
                   CONTINUE
@@ -678,10 +583,6 @@ export default function RegistrationPage() {
                       YEAR_OPTIONS.find((y) => y.value === form.leader.year)?.label ??
                       '—'
                     }
-                  />
-                  <SummaryRow
-                    k="Theme"
-                    v={THEME_OPTIONS.find((t) => t.value === form.theme)?.title ?? '—'}
                   />
                 </dl>
               </div>

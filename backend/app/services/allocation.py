@@ -36,8 +36,12 @@ def set_enabled(db: "Session", enabled: bool) -> None:
 def allocate_pending(db: "Session") -> dict:
     """Allocate one unique statement per unallocated team (theme match first).
 
-    Returns counts: ``allocated``, ``teams_waiting`` (no free statement left
-    for their theme), ``statements_free``.
+    Finals: themes are retired, so most statements carry no track. Teams are
+    matched by theme when both sides still have one; otherwise any free
+    statement is handed out. A statement is never shared.
+
+    Returns counts: ``allocated``, ``teams_waiting`` (no free statement left),
+    ``statements_free``.
     """
     statements = list(db.scalars(select(ProblemStatement)))
     held = {
@@ -50,18 +54,25 @@ def allocate_pending(db: "Session") -> dict:
     free_by_theme: dict[str, list[str]] = {}
     for s in statements:
         if s.id not in held:
-            free_by_theme.setdefault(s.track, []).append(s.id)
+            free_by_theme.setdefault(s.track or "", []).append(s.id)
 
     teams = list(
         db.scalars(select(Team).where(Team.problem_statement_id.is_(None)))
     )
 
+    def _pop_any_free() -> str | None:
+        """Take a statement from any theme bucket (finals fallback)."""
+        for ids in free_by_theme.values():
+            if ids:
+                return ids.pop(0)
+        return None
+
     allocated = 0
     for team in teams:
-        pool = free_by_theme.get(team.theme, [])
-        if not pool:
-            continue  # no unique idea left for this theme — stays waiting
-        statement_id = pool.pop(0)
+        pool = free_by_theme.get(team.theme or "", [])
+        statement_id = pool.pop(0) if pool else _pop_any_free()
+        if statement_id is None:
+            continue
         team.problem_statement_id = statement_id
         team.ps_allocated_at = datetime.utcnow()
         allocated += 1

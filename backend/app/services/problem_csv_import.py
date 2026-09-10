@@ -2,9 +2,10 @@
 
 Expected header row (case-insensitive, order-free):
 
-    title,summary,description,theme,difficulty,sponsor
+    title,summary,description[,theme,difficulty,sponsor]
 
-* ``theme`` accepts ``ai-ml`` / ``web`` / ``app`` (alias ``track`` also works).
+* ``theme`` is OPTIONAL (finals have no themes) — ``track``/``category``
+  aliases still work for legacy CSVs.
 * ``difficulty`` is optional — one of easy/medium/hard (default: medium).
 * ``sponsor`` is optional.
 * Rows are imported as DRAFTS: nothing becomes public automatically, and
@@ -22,10 +23,9 @@ from typing import TYPE_CHECKING
 from fastapi import HTTPException, status
 
 from app.models.problem_statement import ProblemStatement
-from app.schemas.team import TEAM_THEMES
 
 
-def _next_id(db, track: str) -> str:
+def _next_id(db, track: str | None) -> str:
     from app.services.problem_statement import generate_statement_id
 
     return generate_statement_id(db, track)
@@ -51,7 +51,7 @@ COLUMN_ALIASES = {
     "sponsor": "sponsor",
 }
 
-REQUIRED = ("title", "summary", "description", "theme")
+REQUIRED = ("title", "summary", "description")
 
 
 @dataclass
@@ -82,8 +82,8 @@ def parse_and_import(db: "Session", csv_content: str) -> ImportReport:
             detail=(
                 "Missing required column(s): "
                 + ", ".join(missing)
-                + ". Expected header: title,summary,description,theme"
-                " (difficulty and sponsor optional)."
+                + ". Expected header: title,summary,description"
+                " (theme, difficulty and sponsor optional)."
             ),
         )
 
@@ -103,11 +103,9 @@ def parse_and_import(db: "Session", csv_content: str) -> ImportReport:
             if len(row.get(col, "")) < 3:
                 problems.append(f"{col} is required")
 
-        theme = row.get("theme", "").strip().lower()
-        if theme not in TEAM_THEMES:
-            problems.append(
-                f"theme must be one of: {', '.join(sorted(TEAM_THEMES))}"
-            )
+        # Theme is optional now (finals dropped themes) — keep whatever the
+        # row provides as a legacy track label, no validation.
+        theme = (row.get("theme", "").strip().lower()) or None
 
         difficulty = row.get("difficulty", "medium").strip().lower()
         if difficulty not in DIFFICULTIES:

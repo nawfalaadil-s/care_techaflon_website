@@ -86,4 +86,13 @@ export const submissionApi = {
     link.remove()
     window.URL.revokeObjectURL(url)
   },
+
+  /** Admin only — permanently delete several submissions in one call. */
+  async adminBulkDelete(teamIds: string[]): Promise<{ deleted: number; errors: string[] }> {
+    const { data } = await apiClient.post<{
+      deleted: number
+      errors: string[]
+    }>('/teams/submissions/bulk-delete', { team_ids: teamIds })
+    return data
+  },
 }

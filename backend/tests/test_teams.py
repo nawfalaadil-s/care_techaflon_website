@@ -123,11 +123,12 @@ def test_update_owned_team_and_ownership_guard() -> None:
     )
     assert clash.status_code == 409
 
-    # Invalid theme rejected.
-    bad_theme = client.patch(
+    # Themes are retired for the finals — any value is now accepted and no
+    # validation error is raised anymore.
+    legacy_theme = client.patch(
         f"/api/teams/{created['id']}", headers=headers, json={"theme": "quantum"}
     )
-    assert bad_theme.status_code == 422
+    assert legacy_theme.status_code == 200, legacy_theme.text
 
     # Another user cannot see or edit someone else's team.
     stranger = _create_plain_account(_unique("stranger"))

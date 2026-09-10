@@ -15,7 +15,6 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
-import { THEME_LABELS } from '@/data/tracks'
 import { TEAM_STATUS_LABELS } from '@/data/status'
 
 export default function AdminVenuePage() {
@@ -425,7 +424,6 @@ function BulkAllocationSection({
 
   // Filters & options
   const [search, setSearch] = useState('')
-  const [theme, setTheme] = useState('all')
   const [status, setStatus] = useState('all')
   const [department, setDepartment] = useState('all')
   const [allocation, setAllocation] = useState<'all' | 'unassigned' | 'assigned'>('all')
@@ -435,7 +433,7 @@ function BulkAllocationSection({
   // teams that are currently hidden by the applied filters.
   useEffect(() => {
     setSelectedTeamIds(new Set())
-  }, [search, theme, status, department, allocation, sortBy])
+  }, [search, status, department, allocation, sortBy])
 
   const selectedVenueObj = venues.find((v) => v.id === selectedVenue)
 
@@ -459,7 +457,6 @@ function BulkAllocationSection({
   const filteredTeams = useMemo(() => {
     const q = search.trim().toLowerCase()
     let list = eligibleTeams.filter((t) => {
-      if (theme !== 'all' && t.theme !== theme) return false
       if (status !== 'all' && t.status !== status) return false
       if (department !== 'all' && t.leader_department !== department) return false
       if (allocation === 'unassigned' && teamVenueMap[t.id]) return false
@@ -476,7 +473,7 @@ function BulkAllocationSection({
       return a.team_name.localeCompare(b.team_name)
     })
     return list
-  }, [eligibleTeams, search, theme, status, department, allocation, sortBy, teamVenueMap])
+  }, [eligibleTeams, search, status, department, allocation, sortBy, teamVenueMap])
 
   // Teams currently in the selected venue
   const currentTeams = useMemo(() => {
@@ -521,7 +518,6 @@ function BulkAllocationSection({
 
   function resetFilters() {
     setSearch('')
-    setTheme('all')
     setStatus('all')
     setDepartment('all')
     setAllocation('all')
@@ -653,12 +649,6 @@ function BulkAllocationSection({
                 searchPlaceholder="Team, ID, leader…"
                 resultCount={{ shown: filteredTeams.length, total: eligibleTeams.length }}
                 chips={[
-                  theme !== 'all'
-                    ? {
-                        label: `Theme: ${THEME_LABELS[theme] ?? theme}`,
-                        onRemove: () => setTheme('all'),
-                      }
-                    : null,
                   status !== 'all'
                     ? {
                         label: `Status: ${TEAM_STATUS_LABELS[status as keyof typeof TEAM_STATUS_LABELS] ?? status}`,
@@ -691,20 +681,6 @@ function BulkAllocationSection({
                   </Button>
                 }
               >
-                <Field label="Theme" htmlFor="blk-theme" className="mb-0">
-                  <Select
-                    id="blk-theme"
-                    value={theme}
-                    onChange={(e) => setTheme(e.target.value)}
-                  >
-                    <option value="all">All themes</option>
-                    {Object.entries(THEME_LABELS).map(([v, l]) => (
-                      <option key={v} value={v}>
-                        {l}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
                 <Field label="Status" htmlFor="blk-status" className="mb-0">
                   <Select
                     id="blk-status"
@@ -803,7 +779,6 @@ function BulkAllocationSection({
                         <span className="font-mono text-xs text-muted-foreground">
                           {t.team_id}
                         </span>
-                        <Badge variant="outline">{THEME_LABELS[t.theme] ?? t.theme}</Badge>
                         <Badge variant="outline">{TEAM_STATUS_LABELS[t.status] ?? t.status}</Badge>
                         {inAnotherVenue && (
                           <Badge variant="outline">

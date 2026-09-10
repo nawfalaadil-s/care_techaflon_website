@@ -67,6 +67,75 @@ def _team_with_account() -> tuple[str, dict]:
     )
 
 
+def test_submission_bulk_delete_admin_only() -> None:
+    """Admin can delete several submissions in one call; leaders cannot."""
+    team_a, leader_headers = _team_with_account()
+    team_b, _ = _team_with_account()
+
+    for team_id in (team_a, team_b):
+        created = client.put(
+            f"/api/teams/{team_id}/submission", headers=leader_headers, json=PAYLOAD
+        )
+        assert created.status_code in (200, 201), created.text
+
+    # Non-admin is rejected.
+    denied = client.post(
+        "/api/teams/submissions/bulk-delete",
+        headers=leader_headers,
+        json={"team_ids": [team_a]},
+    )
+    assert denied.status_code in (401, 403)
+
+    # Create a dedicated admin (same pattern as test_admin_crm._make_admin).
+    from app.database.base import SessionLocal
+    from app.schemas.user import UserCreate
+    from app.services.user import create_user
+
+    admin_email = _unique("bulk-admin")
+    db = SessionLocal()
+    try:
+        create_user(
+            db,
+            UserCreate(
+                email=admin_email, full_name="Bulk Admin", password=PASSWORD
+            ),
+            role="admin",
+        )
+    finally:
+        db.close()
+    admin = client.post(
+        "/api/auth/login", json={"email": admin_email, "password": PASSWORD}
+    )
+    assert admin.status_code == 200, admin.text
+    admin_headers = {"Authorization": f"Bearer {admin.json()['access_token']}"}
+
+    result = client.post(
+        "/api/teams/submissions/bulk-delete",
+        headers=admin_headers,
+        json={"team_ids": [team_a, team_b]},
+    )
+    assert result.status_code == 200, result.text
+    body = result.json()
+    assert body["deleted"] == 2
+    assert body["errors"] == []
+
+    # Gone: reading the submission again yields null.
+    for team_id in (team_a, team_b):
+        empty = client.get(f"/api/teams/{team_id}/submission", headers=leader_headers)
+        assert empty.status_code == 200
+        assert empty.json()["submission"] is None
+
+    # Unknown ids are reported, not fatal.
+    again = client.post(
+        "/api/teams/submissions/bulk-delete",
+        headers=admin_headers,
+        json={"team_ids": [team_a]},
+    )
+    assert again.status_code == 200
+    assert again.json()["deleted"] == 0
+    assert len(again.json()["errors"]) == 1
+
+
 def test_submission_upsert_get_and_withdraw() -> None:
     team_id, headers = _team_with_account()
 

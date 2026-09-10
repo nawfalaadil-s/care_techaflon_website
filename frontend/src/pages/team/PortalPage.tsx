@@ -17,9 +17,7 @@ import {
 import { Container } from '@/components/ui/container'
 import { Field } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { THEME_LABELS, THEME_OPTIONS } from '@/data/tracks'
 import {
   TEAM_STATUS_LABELS,
   TEAM_STATUS_VARIANT,
@@ -103,7 +101,7 @@ export default function PortalPage() {
           <Badge variant="outline">Team portal</Badge>
           <h1 className="mt-3 text-3xl sm:text-4xl">My team</h1>
           <p className="mt-2 text-muted-foreground">
-            Manage your TechAFlon registration
+            Manage your TechAFlon Finals registration
             {user ? `, ${user.full_name.split(' ')[0]}` : ''}.
           </p>
         </header>
@@ -187,8 +185,7 @@ function TeamCard({
             <CardTitle className="text-xl">{team.team_name}</CardTitle>
             <CardDescription>
               <span className="font-mono">{team.team_id}</span> · Registered{' '}
-              {formatDate(team.registered_at)} ·{' '}
-              {THEME_LABELS[team.theme] ?? team.theme}
+              {formatDate(team.registered_at)}
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -226,7 +223,7 @@ function TeamCard({
               {team.problem_statement.title}
             </h4>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {THEME_LABELS[team.problem_statement.track] ?? team.problem_statement.track}
+              {team.problem_statement.track ?? ''}
               {team.problem_statement.difficulty
                 ? ` · ${team.problem_statement.difficulty}`
                 : ''}
@@ -304,12 +301,11 @@ function openCertificateTab(html: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// Inline edit form (backend supports team_name + theme edits only)
+// Inline edit form (backend supports team_name edits only; themes are retired)
 // ---------------------------------------------------------------------------
 
 interface EditFormState {
   team_name: string
-  theme: string
 }
 
 function TeamEditForm({
@@ -323,7 +319,6 @@ function TeamEditForm({
 }) {
   const [form, setForm] = useState<EditFormState>({
     team_name: team.team_name,
-    theme: team.theme,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
@@ -339,7 +334,6 @@ function TeamEditForm({
 
     const errs: Record<string, string> = {}
     if (form.team_name.trim().length < 2) errs.team_name = 'Enter a team name.'
-    if (!form.theme) errs.theme = 'Select a theme.'
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
 
@@ -349,7 +343,6 @@ function TeamEditForm({
       onSaved(
         await teamApi.update(team.id, {
           team_name: form.team_name.trim(),
-          theme: form.theme,
         }),
       )
     } catch (error) {
@@ -383,21 +376,6 @@ function TeamEditForm({
               invalid={Boolean(errors.team_name)}
               onChange={(e) => update({ team_name: e.target.value })}
             />
-          </Field>
-
-          <Field label="Theme" htmlFor={`edit-theme-${team.id}`} required error={errors.theme}>
-            <Select
-              id={`edit-theme-${team.id}`}
-              value={form.theme}
-              invalid={Boolean(errors.theme)}
-              onChange={(e) => update({ theme: e.target.value })}
-            >
-              {THEME_OPTIONS.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </Select>
           </Field>
 
           <p className="text-xs text-muted-foreground">

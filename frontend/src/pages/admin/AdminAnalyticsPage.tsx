@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { THEME_LABELS } from '@/data/tracks'
 
 type LoadState =
   | { kind: 'loading' }
@@ -69,7 +68,7 @@ export default function AdminAnalyticsPage() {
     )
   }
 
-  const { funnel, teams_over_time, themes, departments, problem_adoption } = data
+const { funnel, teams_over_time, departments, problem_adoption } = data
   const maxDailyCount = Math.max(1, ...teams_over_time.map((d) => d.count))
   const maxDepartmentTeams = Math.max(1, ...departments.map((i) => i.teams))
 
@@ -156,41 +155,9 @@ export default function AdminAnalyticsPage() {
         </CardContent>
       </Card>
 
-      {/* Two column layout: Tracks and Top Institutions */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Theme Performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Theme Performance</CardTitle>
-            <CardDescription>Breakdown by teams, approved, and project submissions.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {themes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No theme data recorded.</p>
-            ) : (
-              themes.map((t) => (
-                <div key={t.theme} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{THEME_LABELS[t.theme] ?? t.theme}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {t.teams} teams · {t.approved} approved · {t.submissions} submitted
-                    </span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all"
-                      style={{
-                        width: `${funnel.registered > 0 ? Math.round((t.teams / funnel.registered) * 100) : 0}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Departments Leaderboard */}
+      {/* Departments leaderboard */}
+      <div className="grid gap-6">
+        {/* Departments */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-semibold">Departments</CardTitle>
@@ -242,7 +209,9 @@ export default function AdminAnalyticsPage() {
                 <div key={s.title} className="flex items-center justify-between gap-3 text-sm border-b pb-2 last:border-0 last:pb-0">
                   <div className="min-w-0">
                     <p className="truncate font-medium">{s.title}</p>
-                    <p className="text-xs text-muted-foreground">{THEME_LABELS[s.track] ?? s.track}</p>
+                    {s.track && (
+                      <p className="text-xs text-muted-foreground">{s.track}</p>
+                    )}
                   </div>
                   <Badge variant="outline" className="shrink-0">
                     {s.teams} {s.teams === 1 ? 'team' : 'teams'}

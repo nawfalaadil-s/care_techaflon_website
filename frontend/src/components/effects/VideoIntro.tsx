@@ -239,7 +239,7 @@ export function VideoIntro({ showVideo, onComplete }: VideoIntroProps) {
               animation: 'title-breathe 2s ease-in-out infinite',
             }}
           >
-            TECHAFLON
+            TECHAFLON FINALS
           </h1>
           <p
             className="mt-3 font-display font-bold text-primary/70 sm:mt-4"

@@ -1,10 +1,8 @@
 import { apiClient } from './client'
 
-/** Valid TechAFlon themes (mirrors backend schemas/team.py). */
-export const TEAM_THEMES = ['ai-ml', 'web'] as const
-
 /** Partial team edit — only provided fields are changed by the backend.
- *  Leaders may change team_name/theme; admins may also set the venue. */
+ *  Leaders may change team_name; admins may also set the venue. Themes are
+ *  retired for the finals (the field is accepted for legacy payloads only). */
 export interface TeamUpdatePayload {
   team_name?: string
   theme?: string
@@ -31,15 +29,15 @@ export interface AllocatedProblemStatement {
   title: string
   summary: string
   description: string
-  track: string
+  /** Legacy theme label — nullable since the finals dropped themes. */
+  track: string | null
   difficulty: string
   sponsor: string | null
 }
 
-/** Payload for POST /teams — public TechAFlon registration. */
+/** Payload for POST /teams — public TechAFlon registration (no theme). */
 export interface TeamCreatePayload {
   team_name: string
-  theme: string
   leader_name: string
   leader_email: string
   leader_phone?: string

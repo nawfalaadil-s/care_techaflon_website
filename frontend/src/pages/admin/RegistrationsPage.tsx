@@ -20,7 +20,7 @@ import { Field } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { DEPARTMENT_OPTIONS, THEME_LABELS, YEAR_OPTIONS } from '@/data/tracks'
+import { DEPARTMENT_OPTIONS, YEAR_OPTIONS } from '@/data/tracks'
 import {
   TEAM_STATUSES,
   TEAM_STATUS_LABELS,
@@ -46,7 +46,6 @@ export default function RegistrationsPage() {
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | string>('all')
-  const [themeFilter, setThemeFilter] = useState<'all' | string>('all')
   const [departmentFilter, setDepartmentFilter] = useState<'all' | string>('all')
   const [yearFilter, setYearFilter] = useState<'all' | string>('all')
 
@@ -61,7 +60,7 @@ export default function RegistrationsPage() {
   // apply to teams that are hidden by the current filters.
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [search, statusFilter, themeFilter, departmentFilter, yearFilter])
+  }, [search, statusFilter, departmentFilter, yearFilter])
 
   // CSV export
   const [exporting, setExporting] = useState<'teams' | 'registration' | null>(null)
@@ -94,7 +93,6 @@ export default function RegistrationsPage() {
     const q = search.trim().toLowerCase()
     return teams.filter((t) => {
       if (statusFilter !== 'all' && t.status !== statusFilter) return false
-      if (themeFilter !== 'all' && t.theme !== themeFilter) return false
       if (departmentFilter !== 'all' && t.leader_department !== departmentFilter)
         return false
       if (yearFilter !== 'all' && t.leader_year !== yearFilter) return false
@@ -107,7 +105,7 @@ export default function RegistrationsPage() {
         t.leader_register_number.toLowerCase().includes(q)
       )
     })
-  }, [teams, search, statusFilter, themeFilter, departmentFilter, yearFilter])
+}, [teams, search, statusFilter, departmentFilter, yearFilter])
 
   const selected = teams.find((t) => t.id === selectedId) ?? null
 
@@ -234,7 +232,6 @@ export default function RegistrationsPage() {
     try {
       const filters = {
         status: statusFilter,
-        theme: themeFilter,
         q: search,
       }
       if (kind === 'registration') {
@@ -270,12 +267,6 @@ export default function RegistrationsPage() {
             ? {
                 label: `Status: ${TEAM_STATUS_LABELS[statusFilter as keyof typeof TEAM_STATUS_LABELS] ?? statusFilter}`,
                 onRemove: () => setStatusFilter('all'),
-              }
-            : null,
-          themeFilter !== 'all'
-            ? {
-                label: `Theme: ${THEME_LABELS[themeFilter] ?? themeFilter}`,
-                onRemove: () => setThemeFilter('all'),
               }
             : null,
           departmentFilter !== 'all'
@@ -332,20 +323,6 @@ export default function RegistrationsPage() {
             {TEAM_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {TEAM_STATUS_LABELS[s]}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Theme" htmlFor="reg-theme" className="mb-0">
-          <Select
-            id="reg-theme"
-            value={themeFilter}
-            onChange={(e) => setThemeFilter(e.target.value)}
-          >
-            <option value="all">All themes</option>
-            {[...new Set(teams.map((t) => t.theme))].map((theme) => (
-              <option key={theme} value={theme}>
-                {THEME_LABELS[theme] ?? theme}
               </option>
             ))}
           </Select>
@@ -469,7 +446,6 @@ export default function RegistrationsPage() {
               <Row k="Email" v={selected.leader_email} />
               <Row k="Register No." v={selected.leader_register_number} />
               <Row k="Department" v={`${selected.leader_department} · ${selected.leader_year}`} />
-              <Row k="Theme" v={THEME_LABELS[selected.theme] ?? selected.theme} />
             </dl>
 
             <div>
@@ -578,8 +554,7 @@ export default function RegistrationsPage() {
                       )}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {t.team_id} · {t.leader_name} ·{' '}
-                      {THEME_LABELS[t.theme] ?? t.theme} · {formatDate(t.created_at)}
+                      {t.team_id} · {t.leader_name} · {formatDate(t.created_at)}
                       {submissions.get(t.id) && ' · 📦 submitted'}
                     </span>
                   </span>
@@ -691,7 +666,7 @@ function ProblemStatementAllocator({
             <option value="">— none allocated —</option>
             {problems.map((p) => (
               <option key={p.id} value={p.id}>
-                [{THEME_LABELS[p.track] ?? p.track}] {p.title}
+                {p.track ? `[${p.track}] ` : ''}{p.title}
                 {p.published ? '' : ' (draft)'}
               </option>
             ))}

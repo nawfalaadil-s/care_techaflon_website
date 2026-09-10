@@ -17,7 +17,6 @@ import {
 import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { THEME_LABELS } from '@/data/tracks'
 import { TEAM_STATUS_LABELS, TEAM_STATUSES } from '@/data/status'
 
 export default function AdminAllocationsPage() {
@@ -28,7 +27,6 @@ export default function AdminAllocationsPage() {
   >({ kind: 'loading' })
   const [search, setSearch] = useState('')
   const [onlyUnallocated, setOnlyUnallocated] = useState(false)
-  const [themeFilter, setThemeFilter] = useState<'all' | string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | string>('all')
   const [auto, setAuto] = useState<AutoAllocateState | null>(null)
 
@@ -58,7 +56,6 @@ export default function AdminAllocationsPage() {
     const q = search.trim().toLowerCase()
     return teams.filter((t) => {
       if (onlyUnallocated && t.problem_statement_id) return false
-      if (themeFilter !== 'all' && t.theme !== themeFilter) return false
       if (statusFilter !== 'all' && t.status !== statusFilter) return false
       if (!q) return true
       return (
@@ -67,7 +64,7 @@ export default function AdminAllocationsPage() {
         t.leader_name.toLowerCase().includes(q)
       )
     })
-  }, [teams, search, onlyUnallocated, themeFilter, statusFilter])
+  }, [teams, search, onlyUnallocated, statusFilter])
 
   function replaceTeam(updated: TeamRecord) {
     setTeams((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
@@ -141,7 +138,7 @@ export default function AdminAllocationsPage() {
                       {p.id}
                     </code>
                     <span className="font-medium">{p.title}</span>
-                    <Badge variant="outline">{THEME_LABELS[p.track] ?? p.track}</Badge>
+                    {p.track && <Badge variant="outline">{p.track}</Badge>}
                     {!p.published && <Badge variant="warning">Draft</Badge>}
                   </li>
                 ))}
@@ -163,12 +160,6 @@ export default function AdminAllocationsPage() {
               onlyUnallocated
                 ? { label: 'Allocation: Unallocated only', onRemove: () => setOnlyUnallocated(false) }
                 : null,
-              themeFilter !== 'all'
-                ? {
-                    label: `Theme: ${THEME_LABELS[themeFilter] ?? themeFilter}`,
-                    onRemove: () => setThemeFilter('all'),
-                  }
-                : null,
               statusFilter !== 'all'
                 ? {
                     label: `Status: ${TEAM_STATUS_LABELS[statusFilter as keyof typeof TEAM_STATUS_LABELS] ?? statusFilter}`,
@@ -177,20 +168,6 @@ export default function AdminAllocationsPage() {
                 : null,
             ].filter((c): c is NonNullable<typeof c> => c !== null)}
           >
-            <Field label="Theme" htmlFor="alloc-theme" className="mb-0">
-              <Select
-                id="alloc-theme"
-                value={themeFilter}
-                onChange={(e) => setThemeFilter(e.target.value)}
-              >
-                <option value="all">All themes</option>
-                {[...new Set(teams.map((t) => t.theme))].map((theme) => (
-                  <option key={theme} value={theme}>
-                    {THEME_LABELS[theme] ?? theme}
-                  </option>
-                ))}
-              </Select>
-            </Field>
             <Field label="Team status" htmlFor="alloc-status" className="mb-0">
               <Select
                 id="alloc-status"
@@ -472,7 +449,6 @@ function AllocationRow({
               </span>
             </p>
             <p className="mt-1 truncate text-xs text-muted-foreground">
-              {THEME_LABELS[team.theme] ?? team.theme}
               {current ? (
                 <>
                   {' · allocated '}
@@ -505,7 +481,7 @@ function AllocationRow({
               <option value="">— none allocated —</option>
               {problems.map((p) => (
                 <option key={p.id} value={p.id}>
-                  [{THEME_LABELS[p.track] ?? p.track}] {p.id.slice(0, 8)}… —{' '}
+                  {p.track ? `[${p.track}] ` : ''}{p.id.slice(0, 8)}… —{' '}
                   {p.title}
                   {p.published ? '' : ' (draft)'}
                 </option>

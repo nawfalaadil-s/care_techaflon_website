@@ -32,11 +32,7 @@ const RULES = [
     critical: false,
   },
   {
-    text: 'The selected development theme (AI/ML or Web Development) must be provided during registration.',
-    critical: false,
-  },
-  {
-    text: 'Problem statements will be provided during Event Phase 1 on 31 August 2026.',
+    text: 'Problem statements will be provided during the TechAFlon Finals on 11 September 2026.',
     critical: false,
   },
   {
@@ -75,9 +71,9 @@ export default function RulesPage() {
       <div className="mx-auto max-w-3xl">
         <header className="mb-8">
           <Badge variant="outline">Official</Badge>
-          <h1 className="mt-3 text-3xl sm:text-4xl">TechAFlon Rules</h1>
+          <h1 className="mt-3 text-3xl sm:text-4xl">TechAFlon Finals Rules</h1>
           <p className="mt-2 text-muted-foreground">
-            The rules for TechAFlon - The Doomsday Protocol. By participating, 
+            The rules for TechAFlon Finals - The Doomsday Protocol. By participating, 
             you agree to these rules and the code of conduct.
           </p>
         </header>
@@ -276,7 +272,7 @@ export default function RulesPage() {
         </div>
 
         <p className="mt-12 rounded-lg border bg-muted/40 p-4 text-center text-xs text-muted-foreground">
-          By participating in TechAFlon, you accept these rules and the code of conduct.
+          By participating in TechAFlon Finals, you accept these rules and the code of conduct.
           Organizers may clarify edge cases on site — their interpretation is
           final. Questions? See the{' '}
           <Link to="/faq" className="link-underline font-medium text-primary">

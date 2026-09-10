@@ -5,15 +5,14 @@ import { Container } from '@/components/ui/container'
 import { DoomsdayBackground } from '@/components/effects/DoomsdayBackground'
 import { DoomCore } from '@/components/home/DoomCore'
 import { Reveal } from '@/components/common/Reveal'
-import { homeContent } from '@/data/home'
 
-/** Event Phase 1 — 31 August 2026, Asia/Kolkata. */
-const EVENT_DATE = new Date('2026-08-31T10:00:00+05:30')
+/** TechAFlon Finals — 11 September 2026, Asia/Kolkata. */
+const EVENT_DATE = new Date('2026-09-11T10:00:00+05:30')
 
 const TIMELINE = [
-  { date: '27 AUG', label: 'REGISTRATION OPENS' },
-  { date: '29 AUG', label: 'REGISTRATION CLOSES' },
-  { date: '31 AUG', label: 'EVENT PHASE 01' },
+  { date: '29 AUG', label: 'REGISTRATION CLOSED' },
+  { date: '31 AUG', label: 'PRELIMS COMPLETE' },
+  { date: '11 SEP', label: 'TECHAFLON FINALS' },
 ] as const
 
 const ELIGIBILITY = [
@@ -131,8 +130,6 @@ function SectionHeading({ index, title }: { index: string; title: string }) {
 }
 
 export default function HomePage() {
-  const { tracks } = homeContent
-
   return (
     <div className="relative">
       <DoomsdayBackground intensity="medium" showWarningGlow={false} />
@@ -151,7 +148,7 @@ export default function HomePage() {
                   className="animate-hero-fade-up text-glow-green mt-4 font-display text-5xl font-bold leading-[0.95] tracking-tight text-foreground sm:mt-5 sm:text-7xl lg:text-8xl"
                   style={{ animationDelay: '80ms' }}
                 >
-                  TECHAFLON
+                  TECHAFLON FINALS
                 </h1>
 
                 <p
@@ -176,7 +173,7 @@ export default function HomePage() {
                     CSE × AI &amp; DS
                   </span>
                   <span className="font-mono text-xs tracking-widest text-muted-foreground">
-                    31 AUGUST 2026 · CARE COLLEGE OF ENGINEERING, TRICHY
+                    11 SEPTEMBER 2026 · CARE COLLEGE OF ENGINEERING, TRICHY
                   </span>
                 </div>
 
@@ -223,7 +220,8 @@ export default function HomePage() {
             <Reveal>
               <SectionHeading index="02 // THE MISSION" title="One event. Two departments." />
               <p className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                TechAFlon is an internal hackathon by CSSA for CSE and AI &amp; DS
+                TechAFlon Finals is the final round of the internal hackathon
+                by CSSA for CSE and AI &amp; DS
                 students of CARE College of Engineering, Trichy.
               </p>
               <p className="text-hud mt-8 inline-flex items-center gap-3 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-primary/80">
@@ -234,40 +232,11 @@ export default function HomePage() {
           </Container>
         </section>
 
-        {/* ── 03 · THE BATTLEFIELD ─────────────────────────────────── */}
+        {/* ── 03 · ELIGIBILITY ─────────────────────────────────────── */}
         <section className="border-t border-primary/10 py-20 sm:py-24 lg:py-28">
           <Container>
             <Reveal>
-              <SectionHeading index="03 // THE BATTLEFIELD" title="Choose your battlefield." />
-            </Reveal>
-            <div className="grid gap-5 min-[480px]:gap-6 sm:grid-cols-3 sm:gap-6 lg:gap-8">
-              {tracks.map((track, i) => (
-                <Reveal key={track.id} delay={i * 90} className="h-full">
-                  <article className="group h-full rounded-xl border border-primary/15 bg-surface/60 p-6 backdrop-blur-sm transition-[border-color,background-color] duration-300 ease-out hover:border-primary/40 sm:p-8">
-                    <span
-                      aria-hidden="true"
-                      className="text-2xl text-primary transition-colors group-hover:text-primary-bright"
-                    >
-                      {track.icon}
-                    </span>
-                    <h3 className="mt-5 font-display text-lg font-semibold tracking-wide text-foreground">
-                      {track.title}
-                    </h3>
-                    <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                      {track.description}
-                    </p>
-                  </article>
-                </Reveal>
-              ))}
-            </div>
-          </Container>
-        </section>
-
-        {/* ── 04 · ELIGIBILITY ─────────────────────────────────────── */}
-        <section className="border-t border-primary/10 py-20 sm:py-24 lg:py-28">
-          <Container>
-            <Reveal>
-              <SectionHeading index="04 // ELIGIBILITY" title="Who can enter." />
+              <SectionHeading index="03 // ELIGIBILITY" title="Who can enter." />
             </Reveal>
             <dl className="grid gap-5 min-[480px]:gap-6 sm:grid-cols-3 sm:gap-6 lg:gap-8">
               {ELIGIBILITY.map((item, i) => (
@@ -284,11 +253,11 @@ export default function HomePage() {
           </Container>
         </section>
 
-        {/* ── 05 · PRIZE POOL ──────────────────────────────────────── */}
+        {/* ── 04 · PRIZE POOL ──────────────────────────────────────── */}
         <section className="border-t border-primary/10 py-20 sm:py-24 lg:py-28">
           <Container>
             <Reveal>
-              <SectionHeading index="05 // PRIZE POOL" title="Claim the purse." />
+              <SectionHeading index="04 // PRIZE POOL" title="Claim the purse." />
             </Reveal>
             <div className="grid gap-5 min-[480px]:gap-6 sm:grid-cols-3 sm:gap-6 lg:gap-8">
               {PRIZES.map((prize, i) => (
@@ -332,11 +301,11 @@ export default function HomePage() {
           </Container>
         </section>
 
-        {/* ── 06 · EVENT TIMELINE ──────────────────────────────────── */}
+        {/* ── 05 · EVENT TIMELINE ──────────────────────────────────── */}
         <section className="border-t border-primary/10 py-20 sm:py-24 lg:py-28">
           <Container>
             <Reveal>
-              <SectionHeading index="06 // EVENT TIMELINE" title="The road to Doomsday." />
+              <SectionHeading index="05 // EVENT TIMELINE" title="The road to Doomsday." />
             </Reveal>
             <ol className="max-w-xl">
               {TIMELINE.map((entry, i) => (
@@ -382,8 +351,8 @@ export default function HomePage() {
                 READY FOR DOOMSDAY?
               </h2>
               <p className="mx-auto mt-6 max-w-md text-sm leading-relaxed text-steel-bright sm:text-base">
-                Registration closes 29 August. Assemble your team before the
-                clock runs out.
+                Registrations are closed. Qualified teams — the finals go down
+                on 11 September 2026.
               </p>
               <div className="mt-10 flex justify-center">
                 <LinkButton

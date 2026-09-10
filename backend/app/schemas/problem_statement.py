@@ -5,16 +5,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.schemas.team import TEAM_THEMES
-
 DIFFICULTIES = {"easy", "medium", "hard"}
-
-
-def _validate_track(value: str) -> str:
-    track = value.strip().lower()
-    if track not in TEAM_THEMES:
-        raise ValueError(f"track must be one of: {', '.join(sorted(TEAM_THEMES))}")
-    return track
 
 
 def _validate_difficulty(value: str) -> str:
@@ -30,7 +21,9 @@ class ProblemStatementBase(BaseModel):
     title: str = Field(min_length=2, max_length=120)
     summary: str = Field(min_length=10, max_length=300)
     description: str = Field(min_length=20, max_length=5000)
-    track: str = Field(min_length=1, max_length=64)
+    # Finals: themes are gone — the track is optional free text used only as
+    # a legacy grouping label. Statements can be published without one.
+    track: str | None = Field(default=None, max_length=64)
     difficulty: str = Field(default="medium", min_length=3, max_length=20)
     sponsor: str | None = Field(default=None, max_length=120)
 
@@ -39,10 +32,13 @@ class ProblemStatementBase(BaseModel):
     def _strip_title(cls, value: str) -> str:
         return value.strip()
 
-    @field_validator("track")
+    @field_validator("track", mode="before")
     @classmethod
-    def _check_track(cls, value: str) -> str:
-        return _validate_track(value)
+    def _normalise_track(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
 
     @field_validator("difficulty")
     @classmethod
@@ -60,7 +56,7 @@ class ProblemStatementUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=2, max_length=120)
     summary: str | None = Field(default=None, min_length=10, max_length=300)
     description: str | None = Field(default=None, min_length=20, max_length=5000)
-    track: str | None = Field(default=None, min_length=1, max_length=64)
+    track: str | None = Field(default=None, max_length=64)
     difficulty: str | None = Field(default=None, min_length=3, max_length=20)
     sponsor: str | None = Field(default=None, max_length=120)
     published: bool | None = None
@@ -70,10 +66,13 @@ class ProblemStatementUpdate(BaseModel):
     def _strip_title(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else value
 
-    @field_validator("track")
+    @field_validator("track", mode="before")
     @classmethod
-    def _check_track(cls, value: str | None) -> str | None:
-        return None if value is None else _validate_track(value)
+    def _normalise_track(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
 
     @field_validator("difficulty")
     @classmethod
@@ -88,7 +87,7 @@ class ProblemStatementResponse(BaseModel):
     title: str
     summary: str
     description: str
-    track: str
+    track: str | None
     difficulty: str
     sponsor: str | None
     published: bool

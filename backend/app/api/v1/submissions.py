@@ -4,6 +4,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Response, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -28,6 +29,12 @@ from app.services.submission import (
 from app.workers.email_tasks import task_send_submission_received
 
 router = APIRouter(prefix="/teams", tags=["submissions"])
+
+
+class BulkSubmissionDeleteRequest(BaseModel):
+    """Team UUIDs whose submissions should be deleted (admin bulk action)."""
+
+    team_ids: list[str] = Field(min_length=1, max_length=200)
 
 
 def _is_privileged(user: User) -> bool:
@@ -145,6 +152,37 @@ def export_all_submissions_csv(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post(
+    "/submissions/bulk-delete",
+    response_model=dict,
+)
+def bulk_delete_submissions(
+    payload: BulkSubmissionDeleteRequest,
+    current: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Permanently delete multiple submissions (admin only).
+
+    Accepts team UUIDs (the ``team_uuid`` of the admin submissions feed).
+    Deleting a submission lets the team submit again from scratch; the team
+    itself is untouched.
+    """
+    _ = current
+    deleted = 0
+    errors: list[str] = []
+    for team_uuid in payload.team_ids:
+        submission = db.scalar(
+            select(Submission).where(Submission.registration_id == team_uuid)
+        )
+        if submission is None:
+            errors.append(f"{team_uuid}: no submission found")
+            continue
+        db.delete(submission)
+        deleted += 1
+    db.commit()
+    return {"deleted": deleted, "errors": errors}
 
 
 @router.get(

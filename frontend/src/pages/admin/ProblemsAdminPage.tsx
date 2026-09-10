@@ -21,7 +21,6 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
-import { TRACK_OPTIONS, TRACK_LABELS } from '@/data/tracks'
 
 const DIFFICULTY_OPTIONS = ['easy', 'medium', 'hard']
 
@@ -29,7 +28,6 @@ const EMPTY_FORM: ProblemStatementInput = {
   title: '',
   summary: '',
   description: '',
-  track: '',
   difficulty: 'medium',
   sponsor: '',
   published: false,
@@ -51,7 +49,6 @@ export default function ProblemsAdminPage() {
 
   // Filters
   const [search, setSearch] = useState('')
-  const [trackFilter, setTrackFilter] = useState<'all' | string>('all')
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | string>('all')
   const [publishedFilter, setPublishedFilter] = useState<'all' | 'live' | 'draft'>('all')
 
@@ -59,12 +56,11 @@ export default function ProblemsAdminPage() {
   // removes statements hidden by the current filters.
   useEffect(() => {
     setSelected(new Set())
-  }, [search, trackFilter, difficultyFilter, publishedFilter])
+  }, [search, difficultyFilter, publishedFilter])
 
   const filteredStatements = useMemo(() => {
     const q = search.trim().toLowerCase()
     return statements.filter((s) => {
-      if (trackFilter !== 'all' && s.track !== trackFilter) return false
       if (difficultyFilter !== 'all' && s.difficulty !== difficultyFilter) return false
       if (publishedFilter === 'live' && !s.published) return false
       if (publishedFilter === 'draft' && s.published) return false
@@ -76,7 +72,7 @@ export default function ProblemsAdminPage() {
         (s.sponsor ?? '').toLowerCase().includes(q)
       )
     })
-  }, [statements, search, trackFilter, difficultyFilter, publishedFilter])
+  }, [statements, search, difficultyFilter, publishedFilter])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -106,7 +102,7 @@ export default function ProblemsAdminPage() {
       title: statement.title,
       summary: statement.summary,
       description: statement.description,
-      track: statement.track,
+      track: statement.track ?? '',
       difficulty: statement.difficulty,
       sponsor: statement.sponsor ?? '',
       published: statement.published,
@@ -321,22 +317,6 @@ export default function ProblemsAdminPage() {
                 />
               </Field>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Track" htmlFor="ps-track" required>
-                  <Select
-                    id="ps-track"
-                    value={form.track}
-                    onChange={(e) => setForm({ ...form, track: e.target.value })}
-                  >
-                    <option value="" disabled>
-                      Select…
-                    </option>
-                    {TRACK_OPTIONS.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
                 <Field label="Difficulty" htmlFor="ps-diff" required>
                   <Select
                     id="ps-diff"
@@ -353,6 +333,7 @@ export default function ProblemsAdminPage() {
                     <option value="hard">Hard</option>
                   </Select>
                 </Field>
+                <div />
               </div>
               <Field label="Sponsor" htmlFor="ps-sponsor" hint="Optional.">
                 <Input
@@ -460,12 +441,6 @@ export default function ProblemsAdminPage() {
         searchPlaceholder="Search title, ID, sponsor…"
         resultCount={{ shown: filteredStatements.length, total: statements.length }}
         chips={[
-          trackFilter !== 'all'
-            ? {
-                label: `Track: ${TRACK_LABELS[trackFilter] ?? trackFilter}`,
-                onRemove: () => setTrackFilter('all'),
-              }
-            : null,
           difficultyFilter !== 'all'
             ? {
                 label: `Difficulty: ${difficultyFilter}`,
@@ -481,20 +456,6 @@ export default function ProblemsAdminPage() {
             : null,
         ].filter((c): c is NonNullable<typeof c> => c !== null)}
       >
-        <Field label="Track" htmlFor="ps-filter-track" className="mb-0">
-          <Select
-            id="ps-filter-track"
-            value={trackFilter}
-            onChange={(e) => setTrackFilter(e.target.value)}
-          >
-            <option value="all">All tracks</option>
-            {TRACK_OPTIONS.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
         <Field label="Difficulty" htmlFor="ps-filter-diff" className="mb-0">
           <Select
             id="ps-filter-diff"
@@ -544,7 +505,7 @@ export default function ProblemsAdminPage() {
                         <span className="truncate">{statement.title}</span>
                       </h3>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {TRACK_LABELS[statement.track] ?? statement.track} ·{' '}
+                        {statement.track ? `${statement.track} · ` : ''}
                         {statement.difficulty}
                         {statement.sponsor ? ` · ${statement.sponsor}` : ''}
                       </p>

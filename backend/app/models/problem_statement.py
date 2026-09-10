@@ -25,7 +25,8 @@ class ProblemStatement(Base):
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    track: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # Finals: themes are retired — the legacy track label is optional.
+    track: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     difficulty: Mapped[str] = mapped_column(
         String(20), nullable=False, default="medium"
     )

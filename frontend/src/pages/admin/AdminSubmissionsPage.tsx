@@ -15,7 +15,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { THEME_LABELS } from '@/data/tracks'
 import { TEAM_STATUS_LABELS, TEAM_STATUSES } from '@/data/status'
 
 function formatDate(iso: string): string {
@@ -33,11 +32,43 @@ export default function AdminSubmissionsPage() {
     { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready' }
   >({ kind: 'loading' })
   const [search, setSearch] = useState('')
-  const [themeFilter, setThemeFilter] = useState<'all' | string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | string>('all')
   const [lockFilter, setLockFilter] = useState<'all' | 'locked' | 'unlocked'>('all')
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  // Bulk selection + delete
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [deleting, setDeleting] = useState(false)
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function bulkDelete() {
+    const ids = [...selected]
+    if (ids.length === 0 || deleting) return
+    if (
+      !window.confirm(
+        `Permanently delete ${ids.length} selected submission(s)? The teams stay registered and can submit again.`,
+      )
+    )
+      return
+    setDeleting(true)
+    try {
+      await submissionApi.adminBulkDelete(ids)
+      setSelected(new Set())
+      await load()
+    } catch (err) {
+      setState({ kind: 'error', message: normalizeApiError(err).message })
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' })
@@ -60,7 +91,6 @@ export default function AdminSubmissionsPage() {
     setExportError(null)
     try {
       await submissionApi.exportAdminCsv({
-        theme: themeFilter,
         status: statusFilter,
         lock: lockFilter,
         q: search,
@@ -70,12 +100,11 @@ export default function AdminSubmissionsPage() {
     } finally {
       setExporting(false)
     }
-  }, [exporting, themeFilter, statusFilter, lockFilter, search])
+  }, [exporting, statusFilter, lockFilter, search])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return rows.filter((r) => {
-      if (themeFilter !== 'all' && r.theme !== themeFilter) return false
       if (statusFilter !== 'all' && r.status !== statusFilter) return false
       if (lockFilter === 'locked' && !r.locked) return false
       if (lockFilter === 'unlocked' && r.locked) return false
@@ -87,7 +116,14 @@ export default function AdminSubmissionsPage() {
         r.leader_email.toLowerCase().includes(q)
       )
     })
-  }, [rows, search, themeFilter, statusFilter, lockFilter])
+  }, [rows, search, statusFilter, lockFilter])
+
+  const allSelected =
+    filtered.length > 0 && filtered.every((r) => selected.has(r.team_uuid))
+
+  const toggleAll = () => {
+    setSelected(allSelected ? new Set() : new Set(filtered.map((r) => r.team_uuid)))
+  }
 
   return (
     <div className="space-y-6">
@@ -152,12 +188,6 @@ export default function AdminSubmissionsPage() {
             searchPlaceholder="Search team, project, leader email…"
             resultCount={{ shown: filtered.length, total: rows.length }}
             chips={[
-              themeFilter !== 'all'
-                ? {
-                    label: `Theme: ${THEME_LABELS[themeFilter] ?? themeFilter}`,
-                    onRemove: () => setThemeFilter('all'),
-                  }
-                : null,
               statusFilter !== 'all'
                 ? {
                     label: `Status: ${TEAM_STATUS_LABELS[statusFilter as keyof typeof TEAM_STATUS_LABELS] ?? statusFilter}`,
@@ -173,20 +203,6 @@ export default function AdminSubmissionsPage() {
                 : null,
             ].filter((c): c is NonNullable<typeof c> => c !== null)}
           >
-            <Field label="Theme" htmlFor="sub-theme" className="mb-0">
-              <Select
-                id="sub-theme"
-                value={themeFilter}
-                onChange={(e) => setThemeFilter(e.target.value)}
-              >
-                <option value="all">All themes</option>
-                {[...new Set(rows.map((r) => r.theme))].map((theme) => (
-                  <option key={theme} value={theme}>
-                    {THEME_LABELS[theme] ?? theme}
-                  </option>
-                ))}
-              </Select>
-            </Field>
             <Field label="Team status" htmlFor="sub-status" className="mb-0">
               <Select
                 id="sub-status"
@@ -214,6 +230,44 @@ export default function AdminSubmissionsPage() {
             </Field>
           </AdminFilterBar>
 
+          {selected.size > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3">
+              <p className="text-sm font-medium">
+                {selected.size} submission(s) selected
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setSelected(new Set())}>
+                  Clear selection
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={deleting}
+                  onClick={() => void bulkDelete()}
+                >
+                  {deleting ? (
+                    <>
+                      <Spinner size="sm" /> Deleting…
+                    </>
+                  ) : (
+                    `Delete ${selected.size} selected`
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <label className="inline-flex w-max items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleAll}
+              className="h-4 w-4 accent-primary"
+              aria-label="Select all submissions"
+            />
+            Select all
+          </label>
+
           {filtered.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
               No submissions match these filters.
@@ -222,7 +276,12 @@ export default function AdminSubmissionsPage() {
             <ul className="space-y-2">
               {filtered.map((s) => (
                 <li key={s.team_uuid}>
-                  <SubmissionRow row={s} onChanged={load} />
+                  <SubmissionRow
+                    row={s}
+                    selected={selected.has(s.team_uuid)}
+                    onToggle={() => toggleSelect(s.team_uuid)}
+                    onChanged={load}
+                  />
                 </li>
               ))}
             </ul>
@@ -235,9 +294,13 @@ export default function AdminSubmissionsPage() {
 
 function SubmissionRow({
   row,
+  selected,
+  onToggle,
   onChanged,
 }: {
   row: AdminSubmissionRow
+  selected: boolean
+  onToggle: () => void
   onChanged: () => void
 }) {
   const [busy, setBusy] = useState(false)
@@ -258,23 +321,32 @@ function SubmissionRow({
   }
 
   return (
-    <Card className="transition-colors hover:bg-accent/50">
+    <Card className={`transition-colors hover:bg-accent/50 ${selected ? 'border-primary bg-primary/5' : ''}`}>
       <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-        <div className="min-w-0">
-          <p className="flex flex-wrap items-center gap-2 font-medium">
-            <span className="truncate">{row.project_name}</span>
-            {row.locked ? (
-              <Badge variant="info">Locked — final</Badge>
-            ) : (
-              <Badge variant="warning">Unlocked</Badge>
-            )}
-          </p>
-          <p className="mt-1 truncate text-xs text-muted-foreground">
-            <Link to="/admin/registrations" className="link-underline">
-              {row.team_id} · {row.team_name}
-            </Link>{' '}
-            · {THEME_LABELS[row.theme] ?? row.theme} · {formatDate(row.updated_at)}
-          </p>
+        <div className="flex min-w-0 items-start gap-3">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            aria-label={`Select submission ${row.project_name}`}
+            className="mt-1 h-4 w-4 shrink-0 accent-primary"
+          />
+          <div className="min-w-0">
+            <p className="flex flex-wrap items-center gap-2 font-medium">
+              <span className="truncate">{row.project_name}</span>
+              {row.locked ? (
+                <Badge variant="info">Locked — final</Badge>
+              ) : (
+                <Badge variant="warning">Unlocked</Badge>
+              )}
+            </p>
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              <Link to="/admin/registrations" className="link-underline">
+                {row.team_id} · {row.team_name}
+              </Link>{' '}
+              · {formatDate(row.updated_at)}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <a

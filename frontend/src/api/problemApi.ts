@@ -5,7 +5,8 @@ export interface ProblemStatement {
   title: string
   summary: string
   description: string
-  track: string
+  /** Legacy theme label — optional since the finals dropped themes. */
+  track: string | null
   difficulty: 'easy' | 'medium' | 'hard'
   sponsor: string | null
   published: boolean
@@ -17,7 +18,7 @@ export interface ProblemStatementInput {
   title: string
   summary: string
   description: string
-  track: string
+  track?: string | null
   difficulty: ProblemStatement['difficulty']
   sponsor?: string | null
   published?: boolean
@@ -76,7 +77,7 @@ export const problemApi = {
   },
 
   /** Bulk-import statements from CSV text (organizer/admin only).
-   *  Header: title,summary,description,theme[,difficulty,sponsor] */
+   *  Header: title,summary,description[,theme,difficulty,sponsor] */
   async uploadCsv(csv: string): Promise<CsvUploadReport> {
     const { data } = await apiClient.post<CsvUploadReport>('/problems/upload', {
       csv,

@@ -12,7 +12,7 @@ export function HUD({
   systemStatus = 'ONLINE',
   threatLevel = 'CRITICAL',
   energy = 87,
-  sector = 'TechaFlon',
+  sector = 'TechaFlon Finals',
   className,
 }: HUDProps) {
   const statusColors = {
