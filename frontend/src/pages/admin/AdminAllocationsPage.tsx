@@ -436,6 +436,12 @@ function AllocationRow({
     }
   }
 
+  async function revert() {
+    if (saving || !team.problem_statement_id) return
+    if (!confirm(`Remove allocation for ${team.team_name}?`)) return
+    await save('')
+  }
+
   return (
     <Card>
       <CardContent className="py-4">
@@ -486,6 +492,17 @@ function AllocationRow({
               ))}
             </Select>
           </Field>
+          {team.problem_statement_id && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={saving}
+              onClick={() => void revert()}
+              className="text-destructive hover:bg-destructive/10"
+            >
+              {saving ? <Spinner size="sm" /> : 'Remove'}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
