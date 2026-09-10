@@ -152,7 +152,8 @@ class AllocatedProblemStatement(BaseModel):
     title: str
     summary: str
     description: str
-    track: str
+    # Track is legacy/optional — statements may have a NULL track in the DB.
+    track: str | None = None
     difficulty: str
     sponsor: str | None
 

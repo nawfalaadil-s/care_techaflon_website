@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
 
-import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { Container } from '@/components/ui/container'
 import { usePublicSettings } from '@/hooks/usePublicSettings'
 import { useIsOrganizer } from '@/components/common'
@@ -117,7 +116,6 @@ export function PublicHeader() {
           >
             Register
           </Link>
-          <ThemeToggle />
           <button
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
