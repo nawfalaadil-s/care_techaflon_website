@@ -1,9 +1,9 @@
 """On-the-spot problem statement allocation.
 
 Admin flips the switch → every team without an allocation receives exactly
-ONE statement, matched by theme first. A statement is never shared: once a
-team holds it, it is skipped for everyone else. New teams registered while
-the switch is on are allocated immediately.
+ONE statement. A statement is never shared: once a team holds it, it is
+skipped for everyone else. New teams registered while the switch is on are
+allocated immediately.
 """
 
 from __future__ import annotations
@@ -34,11 +34,10 @@ def set_enabled(db: "Session", enabled: bool) -> None:
 
 
 def allocate_pending(db: "Session") -> dict:
-    """Allocate one unique statement per unallocated team (theme match first).
+    """Allocate one unique statement per unallocated team.
 
-    Finals: themes are retired, so most statements carry no track. Teams are
-    matched by theme when both sides still have one; otherwise any free
-    statement is handed out. A statement is never shared.
+    A statement is never shared: once a team holds it, it is skipped for
+    everyone else.
 
     Returns counts: ``allocated``, ``teams_waiting`` (no free statement left),
     ``statements_free``.
@@ -50,29 +49,18 @@ def allocate_pending(db: "Session") -> dict:
         if t.problem_statement_id
     }
 
-    # Statements nobody holds yet, grouped by theme (track).
-    free_by_theme: dict[str, list[str]] = {}
-    for s in statements:
-        if s.id not in held:
-            free_by_theme.setdefault(s.track or "", []).append(s.id)
+    # Statements nobody holds yet.
+    free_statements = [s.id for s in statements if s.id not in held]
 
     teams = list(
         db.scalars(select(Team).where(Team.problem_statement_id.is_(None)))
     )
 
-    def _pop_any_free() -> str | None:
-        """Take a statement from any theme bucket (finals fallback)."""
-        for ids in free_by_theme.values():
-            if ids:
-                return ids.pop(0)
-        return None
-
     allocated = 0
     for team in teams:
-        pool = free_by_theme.get(team.theme or "", [])
-        statement_id = pool.pop(0) if pool else _pop_any_free()
-        if statement_id is None:
-            continue
+        if not free_statements:
+            break
+        statement_id = free_statements.pop(0)
         team.problem_statement_id = statement_id
         team.ps_allocated_at = datetime.utcnow()
         allocated += 1
@@ -82,7 +70,7 @@ def allocate_pending(db: "Session") -> dict:
     return {
         "allocated": allocated,
         "teams_waiting": len(teams) - allocated,
-        "statements_free": sum(len(v) for v in free_by_theme.values()),
+        "statements_free": len(free_statements),
     }
 
 

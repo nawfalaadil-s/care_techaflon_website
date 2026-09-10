@@ -249,9 +249,8 @@ function AutoAllocateSwitch({
           <h3 className="text-sm font-semibold">On-the-spot auto allocation</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             When ON, every waiting team is instantly allocated one{' '}
-            <strong>unique</strong> statement matched by its theme — including
-            teams that register later. Statements stay private; teams only see
-            their own.
+            <strong>unique</strong> statement — including teams that register
+            later. Statements stay private; teams only see their own.
           </p>
           {auto?.enabled && (
             <p className="mt-2 text-xs font-medium text-primary">
@@ -288,10 +287,10 @@ function AutoAllocateSwitch({
 // CSV upload
 // ---------------------------------------------------------------------------
 
-const CSV_TEMPLATE = `title,summary,description,theme,difficulty,sponsor
-Doomsday Supply Grid,AI rationing engine,Predict shortage hotspots and reallocate convoys.,ai-ml,hard,
-Shelter Status Network,Live shelter tracker,Real-time capacity map for survivor shelters.,web,medium,
-Last Signal,Offline team messenger,Battery-aware mesh check-ins for rescue squads.,app,medium,CSSA`
+const CSV_TEMPLATE = `title,summary,description,difficulty,sponsor
+Doomsday Supply Grid,AI rationing engine,Predict shortage hotspots and reallocate convoys.,hard,
+Shelter Status Network,Live shelter tracker,Real-time capacity map for survivor shelters.,medium,
+Last Signal,Offline team messenger,Battery-aware mesh check-ins for rescue squads.,medium,CSSA`
 
 function CsvUploadCard({
   onUploaded,
@@ -341,9 +340,9 @@ function CsvUploadCard({
             <p className="mt-1 text-xs text-muted-foreground">
               Header row:{' '}
               <code className="rounded bg-muted px-1 py-0.5 font-mono">
-                title,summary,description,theme[,difficulty,sponsor]
+                title,summary,description[,difficulty,sponsor]
               </code>{' '}
-              — theme: ai-ml / web / app. Rows import as drafts.
+              — Rows import as drafts.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -481,8 +480,7 @@ function AllocationRow({
               <option value="">— none allocated —</option>
               {problems.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.track ? `[${p.track}] ` : ''}{p.id.slice(0, 8)}… —{' '}
-                  {p.title}
+                  {p.id.slice(0, 8)}… — {p.title}
                   {p.published ? '' : ' (draft)'}
                 </option>
               ))}

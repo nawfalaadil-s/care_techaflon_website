@@ -2,10 +2,8 @@
 
 Expected header row (case-insensitive, order-free):
 
-    title,summary,description[,theme,difficulty,sponsor]
+    title,summary,description[,difficulty,sponsor]
 
-* ``theme`` is OPTIONAL (finals have no themes) — ``track``/``category``
-  aliases still work for legacy CSVs.
 * ``difficulty`` is optional — one of easy/medium/hard (default: medium).
 * ``sponsor`` is optional.
 * Rows are imported as DRAFTS: nothing becomes public automatically, and
@@ -43,9 +41,6 @@ COLUMN_ALIASES = {
     "short_description": "summary",
     "description": "description",
     "details": "description",
-    "theme": "theme",
-    "track": "theme",
-    "category": "theme",
     "difficulty": "difficulty",
     "level": "difficulty",
     "sponsor": "sponsor",
@@ -83,7 +78,7 @@ def parse_and_import(db: "Session", csv_content: str) -> ImportReport:
                 "Missing required column(s): "
                 + ", ".join(missing)
                 + ". Expected header: title,summary,description"
-                " (theme, difficulty and sponsor optional)."
+                " (difficulty and sponsor optional)."
             ),
         )
 
@@ -103,10 +98,6 @@ def parse_and_import(db: "Session", csv_content: str) -> ImportReport:
             if len(row.get(col, "")) < 3:
                 problems.append(f"{col} is required")
 
-        # Theme is optional now (finals dropped themes) — keep whatever the
-        # row provides as a legacy track label, no validation.
-        theme = (row.get("theme", "").strip().lower()) or None
-
         difficulty = row.get("difficulty", "medium").strip().lower()
         if difficulty not in DIFFICULTIES:
             difficulty = "medium"
@@ -118,11 +109,11 @@ def parse_and_import(db: "Session", csv_content: str) -> ImportReport:
 
         db.add(
             ProblemStatement(
-                id=_next_id(db, theme),
+                id=_next_id(db, None),
                 title=row["title"][:120],
                 summary=row["summary"],
                 description=row["description"],
-                track=theme,
+                track=None,
                 difficulty=difficulty,
                 sponsor=(row.get("sponsor") or None) or None,
                 published=False,

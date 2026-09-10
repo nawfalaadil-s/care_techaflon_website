@@ -121,11 +121,10 @@ def admin_list_problems(
 
 @router.get("", response_model=list[ProblemStatementResponse])
 def browse_problems(
-    track: str | None = None,
     db: Session = Depends(get_db),
     current: User = Depends(get_current_admin),
 ) -> list[ProblemStatementResponse]:
-    """Admin listing with optional theme filter.
+    """Admin listing.
 
     Statements are private to the event: there is no anonymous browsing.
     Participants only ever see the single statement allocated to them.
@@ -134,8 +133,6 @@ def browse_problems(
     items = [
         ProblemStatementResponse.model_validate(s) for s in list_all(db)
     ]
-    if track:
-        items = [i for i in items if i.track == track]
     return items
 
 

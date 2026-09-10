@@ -15,17 +15,13 @@ if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.orm import Session
 
 
-def list_published(
-    db: "Session", *, track: str | None = None
-) -> list[ProblemStatement]:
-    """Published statements, optionally filtered by track (newest first)."""
+def list_published(db: "Session") -> list[ProblemStatement]:
+    """Published statements (newest first)."""
     query = (
         select(ProblemStatement)
         .where(ProblemStatement.published.is_(True))
         .order_by(ProblemStatement.created_at.desc())
     )
-    if track:
-        query = query.where(ProblemStatement.track == track.lower())
     return list(db.scalars(query))
 
 
@@ -49,15 +45,11 @@ def get_published(db: "Session", statement_id: str) -> ProblemStatement:
     return statement
 
 
-# Human-readable theme tags used in auto-generated IDs (PS-AIML-001).
-_THEME_TAGS = {"ai-ml": "AIML", "web": "WEB"}
+def generate_statement_id(db: "Session", track: str | None) -> str:
+    """Next readable ID for a statement: PS-<###>.
 
-
-def generate_statement_id(db: "Session", track: str) -> str:
-    """Next readable ID for a statement: PS-<THEME>-<###>.
-
-    The number is a global sequence (count + 1) so IDs stay unique across
-    themes; collisions under concurrency fall back to a random tag.
+    The number is a global sequence (count + 1) so IDs stay unique;
+    collisions under concurrency fall back to a random tag.
     """
     import uuid as _uuid
 
@@ -65,9 +57,9 @@ def generate_statement_id(db: "Session", track: str) -> str:
 
     count = db.scalar(select(func.count()).select_from(ProblemStatement)) or 0
     number = int(count) + 1
-    candidate = f"PS-{_THEME_TAGS.get(track, 'GEN')}-{number:03d}"
+    candidate = f"PS-{number:03d}"
     if db.get(ProblemStatement, candidate) is not None:
-        candidate = f"PS-{_THEME_TAGS.get(track, 'GEN')}-{_uuid.uuid4().hex[:4].upper()}"
+        candidate = f"PS-{_uuid.uuid4().hex[:4].upper()}"
     return candidate
 
 
