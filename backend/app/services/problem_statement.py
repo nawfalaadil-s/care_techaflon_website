@@ -46,8 +46,9 @@ def get_published(db: "Session", statement_id: str) -> ProblemStatement:
 
 
 def generate_statement_id(db: "Session", track: str | None) -> str:
-    """Next readable ID for a statement: PS-<###>.
+    """Next readable ID for a statement: PS-GEN-<###>.
 
+    Uses 'GEN' prefix to avoid conflicts with old theme-based IDs.
     The number is a global sequence (count + 1) so IDs stay unique;
     collisions under concurrency fall back to a random tag.
     """
@@ -58,15 +59,16 @@ def generate_statement_id(db: "Session", track: str | None) -> str:
     count = db.scalar(select(func.count()).select_from(ProblemStatement)) or 0
     
     # Try to find a free ID starting from count + 1
+    # Use GEN- prefix to avoid conflicts with old theme-based IDs
     max_attempts = 100
     for attempt in range(max_attempts):
         number = int(count) + 1 + attempt
-        candidate = f"PS-{number:03d}"
+        candidate = f"PS-GEN-{number:03d}"
         if db.get(ProblemStatement, candidate) is None:
             return candidate
     
     # If all sequential IDs are taken, use a random one
-    return f"PS-{_uuid.uuid4().hex[:6].upper()}"
+    return f"PS-GEN-{_uuid.uuid4().hex[:4].upper()}"
 
 
 def create(
