@@ -5,7 +5,7 @@ Problem statements can now be published without a theme: the legacy
 teams simply store an empty string, so no change is needed there.
 
 Revision ID: 0012_problem_track_nullable
-Revises: 0011_submissions_team_fk
+Revises: 0016_venues_team_seats
 Create Date: 2026-09-10
 
 """
@@ -16,7 +16,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0012_problem_track_nullable"
-down_revision: Union[str, Sequence[str], None] = "0011_submissions_team_fk"
+down_revision: Union[str, Sequence[str], None] = "0016_venues_team_seats"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
