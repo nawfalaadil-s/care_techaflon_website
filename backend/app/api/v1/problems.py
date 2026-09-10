@@ -28,7 +28,7 @@ router = APIRouter(prefix="/problems", tags=["problems"])
 
 
 class CsvUploadRequest(BaseModel):
-    """Raw CSV text with header: title,summary,description,theme[,difficulty,sponsor]"""
+    """Raw CSV text with header: title,summary,description[,difficulty,sponsor]"""
 
     csv: str
 
